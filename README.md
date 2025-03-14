@@ -1,4 +1,4 @@
-### Documentation for `winmem` Library
+### Information about `winmem` Library
 
 The `winmem` library provides a set of functions to interact with Windows **x64** processes, threads, and modules. It allows you to retrieve information about running processes, threads, and modules, attach to processes, read and write memory, and enumerate system resources. Below is a brief guide on how to use the library.
 
