@@ -79,7 +79,7 @@ int main() {
 
 ### Additional Notes:
 - **Error Handling**: Most functions log errors using the `wmLog` function, which outputs to the console. You can check the logs for detailed error information.
-- **Memory Protection**: Before reading or writing memory, the library checks if the memory is protected with the appropriate flags (`WINMEM_READONLY` or `WINMEM_READWRITE`). If the memory is not properly protected, the operation will fail.
+- **Memory Protection**: Before reading or writing memory, the library checks if the memory is protected with the appropriate flags. If the memory is not protected with these flags, the operation will fail.
 - **Resource Management**: Always call `Deattach` to close handles to processes when they are no longer needed to avoid resource leaks.
 
 ---
