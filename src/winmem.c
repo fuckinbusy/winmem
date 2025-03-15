@@ -69,7 +69,7 @@ int _wmLogImpl(LogLevel level, const char *funcName, const char *const _Format, 
     return result; // basically same as printf it return amount of chars
 }
 
-#if 0
+#if 1
     #define wmLog(level, _Format, ...) _wmLogImpl(level, __FUNCTION__, _Format, ##__VA_ARGS__)
 #else
     #define wmLog(...)
@@ -92,6 +92,7 @@ void _FillModuleInfo(pModuleInfo info, PMODULEENTRY32 entry) {
     strcpy_s(info->name, MAX_MODULE_NAME32 + 1, entry->szModule);
     info->processID = entry->th32ProcessID;
     info->baseAddress = entry->modBaseAddr;
+    info->baseSize = entry->modBaseSize;
     info->hModule = entry->hModule;
     return;
 }
@@ -159,21 +160,20 @@ BOOL _TraverseSnapshots(DWORD dwFlags, DWORD th32ProcessID, size_t dwSize,
         return FALSE;
     }
 
-    snapshot->entry = malloc(dwSize);
+    snapshot->entry = calloc(1, dwSize);
     if (snapshot->entry == NULL) {
         CloseHandle(hSnapshot);
         wmLog(WINMEM_LOG_ERROR, 
-            "Failed to allocate memory for snapshot entry. Requested size: %zu bytes.",
-            dwSize
-        );
+            "Failed to allocate memory for snapshot entry. Requested size: %zu bytes.", dwSize);
         return FALSE;
     }
 
+    // important to set size dwSize of a structure
     *(DWORD*)snapshot->entry = dwSize;
     if (!First32(hSnapshot, snapshot->entry)) {
         CloseHandle(hSnapshot);
         free(snapshot->entry);
-        wmLog(WINMEM_LOG_ERROR, "Failed to retrieve first entry. Code: %lu", GetLastError());
+        wmLog(WINMEM_LOG_ERROR, "Failed to retrieve entry. Code: %lu", GetLastError());
         return FALSE;
     }
 
@@ -488,7 +488,7 @@ BOOL EnumProcesses(EnumProcessesCallback callback, void *userData) {
 }
 
 BOOL EnumModules(DWORD processID, EnumModulesCallback callback, void *userData) {
-    if (callback == NULL) return FALSE;
+    if (processID == 0 || callback == NULL) return FALSE;
 
     EnumModuleData data = {.callback = callback, .userData = userData};
     if (_TraverseModules(processID, _EnumSnapshotsCallback, &data)) {
@@ -497,54 +497,198 @@ BOOL EnumModules(DWORD processID, EnumModulesCallback callback, void *userData) 
     return FALSE;
 }
 
-SIZE_T GetMemoryInfo(HANDLE hProcess, LPCVOID address, PMEMORY_BASIC_INFORMATION buffer, SIZE_T bufferSize) {
-    return VirtualQueryEx(hProcess, address, buffer, bufferSize);
+SIZE_T GetMemoryInfo(HANDLE hProcess, LPCVOID address, PMEMORY_BASIC_INFORMATION buffer) {
+    if (hProcess == INVALID_HANDLE_VALUE || address == NULL || buffer == NULL) return 0;
+    return VirtualQueryEx(hProcess, address, buffer, sizeof(MEMORY_BASIC_INFORMATION));
 }
-// TODO: Also need to check if MEM_COMMIT is set
-BOOL IsMemoryProtected(HANDLE hProcess, LPCVOID address, MemoryProtectionFlag protectionFlag) {
-    MEMORY_BASIC_INFORMATION mbi = {0};
-    SIZE_T qmres = GetMemoryInfo(hProcess, address, &mbi, sizeof(mbi));
-    if (qmres != 0) {
-        wmLog(WINMEM_LOG_INFO, "Checking memory protection flag 0x%x at: %p", protectionFlag, address);
-        if (protectionFlag & mbi.Protect) {
-            wmLog(WINMEM_LOG_INFO, "0x%x flag is set for memory at: %p", protectionFlag, address);
-            return TRUE;
-        }
+
+UINT_PTR GetModuleBaseAddress(DWORD processID, LPCSTR name) {
+    if (name == NULL) return 0;
+
+    ModuleInfo info = {0};
+    if(GetModuleInfo(name, processID, &info)) {
+        return (UINT_PTR)info.baseAddress;
     }
-    wmLog(WINMEM_LOG_WARNING, "Memory is not protected with 0x%x at: %p", protectionFlag, address);
+    return 0;
+}
+
+BOOL IsMemoryProtected(HANDLE hProcess, LPCVOID address, DWORD protectionFlag) {
+    MEMORY_BASIC_INFORMATION mbi = {0};
+    if (VirtualQueryEx(hProcess, address, &mbi, sizeof(mbi)) == 0) {
+        wmLog(WINMEM_LOG_ERROR, "VirtualQueryEx failed for address %p. Error code: %lu", address, GetLastError());
+        return FALSE;
+    }
+    if (mbi.State != MEM_COMMIT) {
+        wmLog(WINMEM_LOG_WARNING, "Memory at %p is not committed (State: 0x%X)", address, mbi.State);
+        return FALSE;
+    }
+
+    BOOL isProtected = FALSE;
+
+    switch (protectionFlag) {
+        case WINMEM_CANREAD:
+            isProtected = (mbi.Protect & (PAGE_READWRITE | PAGE_EXECUTE_READWRITE)) != 0;
+            break;
+        case WINMEM_CANWRITE:
+            isProtected = (mbi.Protect & (PAGE_READWRITE | PAGE_EXECUTE_READWRITE)) != 0;
+            break;
+        case WINMEM_NOACCESS:
+            isProtected = (mbi.Protect & (PAGE_NOACCESS | PAGE_GUARD)) != 0;
+            break;
+    }
+
+    wmLog(WINMEM_LOG_INFO, "Memory at %p: Protect=0x%X, Requested=0x%X, Protected=%d",
+          address, mbi.Protect, protectionFlag, isProtected);
+
+    return isProtected;
+}
+
+BOOL ProtectMemory(HANDLE hProcess, LPVOID address, SIZE_T size, DWORD newProtect, PDWORD pOldProtect) {
+    if (hProcess == INVALID_HANDLE_VALUE || address == NULL || size == 0 || newProtect == 0 || pOldProtect == NULL) {
+        return FALSE;
+    }
+    if (VirtualProtectEx(hProcess, address, size, newProtect, pOldProtect)) {
+        wmLog(WINMEM_LOG_INFO, "Memory protection flag changed at %p to %zu", address, newProtect);
+        return TRUE;
+    }
+    wmLog(WINMEM_LOG_INFO, "Failed to set memory protection at %p. Error code: %lu", address, GetLastError());
     return FALSE;
 }
 
-BOOL ReadMemory(HANDLE hProcess, LPCVOID address, LPVOID buffer, SIZE_T size, SIZE_T *nBytesReaded) {
-    if (hProcess == NULL) return FALSE;
-    if (buffer == NULL) return FALSE;
-    if (address == NULL) return FALSE;
-    if (size == 0) return FALSE;
-    if (IsMemoryProtected(hProcess, address, WINMEM_READWRITE) || 
-    IsMemoryProtected(hProcess, address, WINMEM_READONLY)) {
-        SIZE_T bytesRead;
+SIZE_T ReadMemory(HANDLE hProcess, LPCVOID address, LPVOID buffer, SIZE_T size) {
+    if (hProcess == INVALID_HANDLE_VALUE || address == NULL || buffer == NULL || size == 0) return 0;
+
+    SIZE_T bytesRead = 0;
+    if (IsMemoryProtected(hProcess, address, WINMEM_CANREAD)) {
         if (ReadProcessMemory(hProcess, address, buffer, size, &bytesRead)) {
-            if (nBytesReaded != NULL) *(nBytesReaded) = bytesRead;
             wmLog(WINMEM_LOG_INFO, "Read %zu bytes from address %p", bytesRead, address);
-            return TRUE;
+            return bytesRead;
         }
         wmLog(WINMEM_LOG_ERROR, "Failed to read %zu bytes from address %p. Error code: %lu", size, address, GetLastError());
     }
-    return FALSE;
+    return bytesRead;
 }
 
-BOOL WriteMemory(HANDLE hProcess, LPVOID address, LPVOID buffer, SIZE_T size, SIZE_T *nBytesWritten) {
-    if (hProcess == NULL) return FALSE;
-    if (address == NULL) return FALSE;
-    if (size == 0) return FALSE;
-    if (IsMemoryProtected(hProcess, address, WINMEM_READWRITE)) {
-        SIZE_T bytesWritten;
-        if (WriteProcessMemory(hProcess, address, buffer, size, &bytesWritten)) {
-            if (nBytesWritten != NULL) *(nBytesWritten) = bytesWritten;
-            wmLog(WINMEM_LOG_INFO, "Write %zu bytes to address %p", bytesWritten, address);
-            return TRUE;
+SIZE_T WriteMemory(HANDLE hProcess, LPVOID address, LPVOID buffer, SIZE_T size) {
+    if (hProcess == INVALID_HANDLE_VALUE || address == NULL || buffer == NULL || size == 0) return 0;
+
+    SIZE_T bytesWritten = 0;
+    DWORD oldProtect = 0;
+    BOOL isProtected = FALSE;
+    BOOL canWrite = TRUE;
+    MEMORY_BASIC_INFORMATION mbi = {0};
+    if (!IsMemoryProtected(hProcess, address, WINMEM_CANWRITE)) {
+        canWrite = FALSE;
+        GetMemoryInfo(hProcess, (LPCVOID)address, &mbi);
+        wmLog(WINMEM_LOG_INFO, "Cannot write to memory page %p", mbi.BaseAddress);
+        wmLog(WINMEM_LOG_INFO, "Trying to change memory page %p protection", mbi.BaseAddress);
+        if (VirtualProtectEx(hProcess, (LPVOID)mbi.BaseAddress, mbi.RegionSize, PAGE_READWRITE, &oldProtect)) {
+            wmLog(WINMEM_LOG_INFO, "Memory page %p protection changed: 0x%X", mbi.BaseAddress, WINMEM_CANWRITE);
+            isProtected = TRUE;
+            canWrite = TRUE;
         }
-        wmLog(WINMEM_LOG_ERROR, "Failed to write %zu bytes to address %p. Error code: %lu", size, address, GetLastError());
     }
-    return FALSE;
+
+    if (canWrite) {
+        if (WriteProcessMemory(hProcess, address, buffer, size, &bytesWritten)) {
+            wmLog(WINMEM_LOG_INFO, "Write %zu bytes to address %p", bytesWritten, address);
+            if (isProtected) {
+                DWORD temp;
+                if(VirtualProtectEx(hProcess, (LPVOID)mbi.BaseAddress, mbi.RegionSize, oldProtect, &temp)) {
+                    wmLog(WINMEM_LOG_INFO, "Memory page %p protection restored: 0x%X", mbi.BaseAddress, oldProtect);
+                }
+            }
+            return bytesWritten;
+        }
+    }
+
+    wmLog(WINMEM_LOG_ERROR, "Failed to write %zu bytes to address %p. Error code: %lu", size, address, GetLastError());
+    return bytesWritten;
+}
+
+UINT_PTR PatternScan(HANDLE hProcess, BYTE *pattern, SIZE_T size) {
+    if (hProcess == INVALID_HANDLE_VALUE || pattern == NULL || size == 0) return 0;
+
+    SYSTEM_INFO sysInfo = {0};
+    GetSystemInfo(&sysInfo);
+
+    const SIZE_T pageSize = sysInfo.dwPageSize;
+    // using overlap in case if pattern is between two memory pages
+    const SIZE_T overlap = size > 1 ? size-1 : 0;
+
+    BYTE *buffer = (BYTE*)malloc(pageSize + overlap);
+    if (!buffer) {
+        wmLog(WINMEM_LOG_ERROR, "Failed to allocate buffer");
+        return 0;
+    }
+
+    UINT_PTR curPageAddress = (UINT_PTR)sysInfo.lpMinimumApplicationAddress;
+    UINT_PTR maxAddress = (UINT_PTR)sysInfo.lpMaximumApplicationAddress;
+
+    while ((curPageAddress <= (UINT_PTR)maxAddress)) {
+        MEMORY_BASIC_INFORMATION mbi = {0};
+        if (!VirtualQueryEx(hProcess, (LPCVOID)curPageAddress, &mbi, sizeof(mbi))) {
+            wmLog(WINMEM_LOG_ERROR, "Page scanning searching error. Error code: %lu", GetLastError());
+            break;
+        }
+
+        // updating page address in case page is not available
+        curPageAddress = (UINT_PTR)mbi.BaseAddress + mbi.RegionSize;
+
+        wmLog(WINMEM_LOG_INFO, "Searching for pattern on page %p", curPageAddress);
+
+        if (mbi.State != MEM_COMMIT) {
+            wmLog(WINMEM_LOG_WARNING, "Page %p memory is free or reserved", curPageAddress);
+            continue;
+        }
+
+        DWORD oldProtect = 0;
+        BOOL protectionChanged = FALSE;
+        if ((mbi.Protect & (PAGE_READONLY | PAGE_READWRITE | PAGE_EXECUTE_READ | PAGE_EXECUTE_READWRITE)) == 0) {
+            if (VirtualProtectEx(hProcess, (LPVOID)mbi.BaseAddress, mbi.RegionSize, PAGE_READWRITE, &oldProtect)) {
+                protectionChanged = TRUE;
+            } else {
+                wmLog(WINMEM_LOG_WARNING, "Cannot change protection for page %p. Error: %lu", mbi.BaseAddress, GetLastError());
+                continue;
+            }
+        }
+
+        UINT_PTR regionBase = (UINT_PTR)mbi.BaseAddress;
+        UINT_PTR regionEnd = regionBase + mbi.RegionSize;
+        UINT_PTR curAddress = regionBase;
+
+        while (curAddress < regionEnd) {
+            SIZE_T bytesToRead = min(pageSize + overlap, regionEnd - curAddress);
+            SIZE_T bytesRead = 0;
+            BOOL rpmResult = ReadProcessMemory(hProcess, (LPCVOID)curAddress, (LPVOID)buffer, bytesToRead, &bytesRead);
+            if (!rpmResult || bytesRead == 0) break;
+
+            if (bytesRead >= size) {
+                BYTE firstByte = pattern[0];
+                for (SIZE_T i = 0; i < bytesRead; ++i) {
+                    // important to check first byte to prevent calling memcmp to many times
+                    if (buffer[i] == firstByte && memcmp(buffer + i, pattern, size) == 0) {
+                        if (protectionChanged) { // restoring protection back
+                            DWORD temp = 0;
+                            VirtualProtectEx(hProcess, (LPVOID)mbi.BaseAddress, mbi.RegionSize, oldProtect, &temp);
+                        }
+                        free(buffer);
+                        wmLog(WINMEM_LOG_INFO, "Pattern found at %p", curAddress + i);
+                        return curAddress + i;
+                    }
+                }
+            }
+
+            curAddress += (bytesRead > overlap) ? (bytesRead - overlap) : bytesRead;
+        }
+        
+        if (protectionChanged) { // restoring protection back
+            DWORD temp = 0;
+            VirtualProtectEx(hProcess, (LPVOID)mbi.BaseAddress, mbi.RegionSize, oldProtect, &temp);
+        }
+    }
+
+    free(buffer);
+    wmLog(WINMEM_LOG_INFO, "Pattern not found in scanned memory");
+    return 0;
 }

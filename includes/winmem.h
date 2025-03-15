@@ -20,6 +20,7 @@ typedef struct WINMEM_INFO_PROCESS {
 typedef struct WINMEM_INFO_MODULE {
     DWORD processID;                  // Module process ID
     BYTE *baseAddress;                // Base address of module in processID's context
+    DWORD baseSize;
     HMODULE hModule;                  // Module handle in processID's context
     CHAR name[MAX_MODULE_NAME32 + 1]; // Module name
 } ModuleInfo, *pModuleInfo; 
@@ -30,11 +31,11 @@ typedef enum WINMEM_SNAPSHOT_TYPE {
     WINMEM_SNAPMODULE   // Callback type for modules
 } SnapshotType;
 
-typedef enum WINMEM_MEMORY_PROTECTION {
-    WINMEM_READONLY = PAGE_READONLY,
-    WINMEM_READWRITE = PAGE_READWRITE
-    // add more flags
-} MemoryProtectionFlag;
+#define WINMEM_CANREAD (PAGE_READONLY | PAGE_EXECUTE_READ)
+#define WINMEM_CANWRITE (PAGE_READWRITE | PAGE_EXECUTE_READWRITE)
+#define WINMEM_CANCOPY (PAGE_WRITECOPY | PAGE_EXECUTE_WRITECOPY)
+#define WINMEM_NOACCESS PAGE_NOACCESS
+
 
 typedef BOOL (*EnumThreadsCallback)(pThreadInfo, void*);
 typedef BOOL (*EnumProcessesCallback)(pProcessInfo, void*);
@@ -163,10 +164,18 @@ BOOL EnumModules(DWORD processID, EnumModulesCallback callback, void *userData);
  * @param hProcess A handle to the target process.
  * @param address The address in the target process from which to retrieve memory information.
  * @param buffer A pointer to a MEMORY_BASIC_INFORMATION structure that receives the memory information.
- * @param bufferSize The size of the buffer.
  * @return The number of bytes returned in the buffer, or 0 if the function fails.
  */
-SIZE_T GetMemoryInfo(HANDLE hProcess, LPCVOID address, PMEMORY_BASIC_INFORMATION buffer, SIZE_T bufferSize);
+SIZE_T GetMemoryInfo(HANDLE hProcess, LPCVOID address, PMEMORY_BASIC_INFORMATION buffer);
+
+/**
+ * Retrieves the base address of a specified module in a target process.
+ * 
+ * @param processID The ID of the target process.
+ * @param name The name of the module to find.
+ * @return The base address of the module as a UINT_PTR, or 0 if the module is not found.
+ */
+UINT_PTR GetModuleBaseAddress(DWORD processID, LPCSTR name);
 
 /**
  * Checks if a memory region in a target process is protected with the specified protection flag.
@@ -175,26 +184,46 @@ SIZE_T GetMemoryInfo(HANDLE hProcess, LPCVOID address, PMEMORY_BASIC_INFORMATION
  * @param protectionFlag The memory protection flag to check (e.g., WINMEM_READONLY, WINMEM_READWRITE).
  * @return TRUE if the memory is protected with the specified flag, FALSE otherwise.
  */
-BOOL IsMemoryProtected(HANDLE hProcess, LPCVOID address, MemoryProtectionFlag protectionFlag);
+BOOL IsMemoryProtected(HANDLE hProcess, LPCVOID address, DWORD protectionFlag);
+
+/**
+ * Changes the memory protection of a region in a target process.
+ * 
+ * @param hProcess     Handle to the target process.
+ * @param address      Starting address of the memory region.
+ * @param size         Size of the memory region.
+ * @param newProtect   New memory protection flags (e.g., PAGE_READWRITE).
+ * @param pOldProtect  Pointer to store the old protection flags.
+ * @return             TRUE if successful, FALSE otherwise.
+ */
+BOOL ProtectMemory(HANDLE hProcess, LPVOID address, SIZE_T size, DWORD newProtect, PDWORD pOldProtect);
 
 /**
  * Reads memory from a specified address in a target process.
- * @param hProcess A handle to the target process.
- * @param address The address in the target process from which to read memory.
- * @param buffer A pointer to the buffer that receives the data read from the target process.
- * @param size The number of bytes to read from the target process.
- * @param nBytesReaded A pointer to a variable that receives the number of bytes read. Can be NULL.
- * @return TRUE if the memory read operation was successful, FALSE otherwise.
+ * @param hProcess     Handle to the target process.
+ * @param address      Address in the target process from which to read memory.
+ * @param buffer       Pointer to the buffer that receives the data read from the target process.
+ * @param size         Number of bytes to read from the target process.
+ * @return             Number of bytes successfully read, or 0 if the operation failed.
  */
-BOOL ReadMemory(HANDLE hProcess, LPCVOID address, LPVOID buffer, SIZE_T size, SIZE_T *nBytesReaded);
+SIZE_T ReadMemory(HANDLE hProcess, LPCVOID address, LPVOID buffer, SIZE_T size);
 
 /**
  * Writes memory to a specified address in a target process.
- * @param hProcess A handle to the target process.
- * @param address The address in the target process to which to write memory.
- * @param buffer A pointer to the buffer containing the data to write.
- * @param size The number of bytes to write to the target process.
- * @param nBytesWritten A pointer to a variable that receives the number of bytes written. Can be NULL.
- * @return TRUE if the memory write operation was successful, FALSE otherwise.
+ * @param hProcess     Handle to the target process.
+ * @param address      Address in the target process to which to write memory.
+ * @param buffer       Pointer to the buffer containing the data to write.
+ * @param size         Number of bytes to write to the target process.
+ * @return             Number of bytes successfully written, or 0 if the operation failed.
  */
-BOOL WriteMemory(HANDLE hProcess, LPVOID address, LPVOID buffer, SIZE_T size, SIZE_T *nBytesWritten);
+SIZE_T WriteMemory(HANDLE hProcess, LPVOID address, LPVOID buffer, SIZE_T size);
+
+/**
+ * Scans the memory of a target process for a specific byte pattern.
+ * 
+ * @param hProcess Handle to the target process.
+ * @param pattern  Pointer to the byte pattern to search for.
+ * @param size     Size of the byte pattern.
+ * @return         Address where the pattern is found, or 0 if not found.
+ */
+UINT_PTR PatternScan(HANDLE hProcess, BYTE *pattern, SIZE_T size);
