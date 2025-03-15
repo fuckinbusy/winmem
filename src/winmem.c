@@ -69,7 +69,7 @@ int _wmLogImpl(LogLevel level, const char *funcName, const char *const _Format, 
     return result; // basically same as printf it return amount of chars
 }
 
-#if 1
+#if 0
     #define wmLog(level, _Format, ...) _wmLogImpl(level, __FUNCTION__, _Format, ##__VA_ARGS__)
 #else
     #define wmLog(...)
@@ -503,7 +503,7 @@ SIZE_T GetMemoryInfo(HANDLE hProcess, LPCVOID address, PMEMORY_BASIC_INFORMATION
 }
 
 UINT_PTR GetModuleBaseAddress(DWORD processID, LPCSTR name) {
-    if (name == NULL) return 0;
+    if (name == NULL || processID == 0) return 0;
 
     ModuleInfo info = {0};
     if(GetModuleInfo(name, processID, &info)) {
