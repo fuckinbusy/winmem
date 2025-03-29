@@ -1,55 +1,55 @@
 #include "winmem.h"
 
-typedef enum wmsnaptype {
+typedef enum {
     WINMEM_SNAPPROCESS, // Callback type for processes
     WINMEM_SNAPTHREAD,  // Callback type for threads
     WINMEM_SNAPMODULE   // Callback type for modules
 } SnapshotType;
 
-typedef struct wmsnapshot {
+typedef struct {
     SnapshotType type;
     void *entry;
 } Snapshot;
 
-typedef enum wmloglevel {
+typedef enum {
     WINMEM_LOG_INFO,    // Informational log level
     WINMEM_LOG_WARNING, // Warning log level
     WINMEM_LOG_ERROR    // Error log level
 } LogLevel;
 
-typedef struct wmwindata {
+typedef struct {
     DWORD   processID;      // Process ID associated with the window
     HWND    hwnd;           // Handle to the window
 } WindowData;
 
-typedef struct wmprocdata {
+typedef struct {
     LPCSTR       nameToFind; // Name of the process to find
     DWORD        idToFind;   // Process ID to find
     pProcessInfo info;       // Pointer to store process information
 } FindProcessData;
 
-typedef struct wmthreaddata {
+typedef struct {
     DWORD       processID;  // Process ID associated with the thread
     DWORD       idToFind;   // Thread ID to find
     pThreadInfo info;       // Pointer to store thread information
 } FindThreadData;
 
-typedef struct wmmoduledata {
+typedef struct {
     LPCSTR      nameToFind;
     pModuleInfo info;
 } FindModuleData;
 
-typedef struct wmenumthreaddata {
+typedef struct {
     EnumThreadsCallback callback;
     void *userData;
 } EnumThreadData;
 
-typedef struct wmenumprocessdata {
+typedef struct {
     EnumProcessesCallback callback;
     void *userData;
 } EnumProcessData;
 
-typedef struct wmenummoduledata {
+typedef struct {
     EnumModulesCallback callback;
     void *userData;
 } EnumModuleData;

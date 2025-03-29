@@ -1,27 +1,31 @@
 CC = gcc
 NAME = winmem
 
+start:
+	@echo "You should choose an option: lib | dll | lib_log | dll_log"
+
 lib:
 	@echo Building (lib).
 	@$(CC) -c -O3 -m64 -Wall -Wextra -o winmem.o -Iincludes src/winmem.c
-	@ar rcs bin/libwinmem_static.lib winmem.o
+	@ar rcs lib/libwinmem64.lib winmem.o
 	@del winmem.o
-	@echo Success (lib).
+	@echo Finished (lib).
+
+lib_log:
+	@echo Building (lib with logging).
+	@$(CC) -c -O3 -m64 -Wall -Wextra -o winmem.o -Iincludes src/winmem.c
+	@ar rcs lib/libwinmem64_log.lib winmem.o
+	@del winmem.o
+	@echo Finished (lib).
 
 dll:
 	@echo Building (dll).
-	@$(CC) -O3 -m64 -Wall -Wextra -shared -o bin/wm64.dll -Iincludes src/winmem.c -Wl,--out-implib,bin/libwm64.lib
-	@echo Building finished.
-	@echo Success (dll).
+	@$(CC) -O3 -m64 -Wall -Wextra -shared -o lib/wm64.dll -Iincludes src/winmem.c -Wl,--out-implib,lib/libwm64.lib
+	@if exist lib/libwm64.lib del lib\libwm64.lib
+	@echo Finished (dll).
 
-dllmain:
-	@echo Building binary (main.c by dll).
-	@mingw32-make dll
-	@$(CC) -m64 -O3 -Wall -Wextra -Iincludes -o winmem.exe src/main.c -Lbin -lwm64
-	@echo Building finished.
-
-libmain:
-	@echo Building binary (main.c by lib).
-	@mingw32-make lib
-	@$(CC) -m64 -O3 -Wall -Wextra -Iincludes -o winmem.exe src/main.c -Lbin -lwinmem_static
-	@echo Building finished.
+dll_log:
+	@echo Building (dll lib with logging).
+	@$(CC) -O3 -m64 -Wall -Wextra -shared -o lib/wm64_log.dll -Iincludes src/winmem.c -Wl,--out-implib,lib/libwm64_log.lib
+	@if exist lib/libwm64_log.lib del lib\libwm64_log.lib
+	@echo Finished (dll).
