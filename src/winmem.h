@@ -1,8 +1,10 @@
+#pragma once
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <Windows.h>
 #include <tlhelp32.h>
-#include <stdarg.h>
+#include <stdarg.h> 
 
 typedef struct WINMEM_INFO_THREAD {
     DWORD threadID;          // Thread ID
@@ -24,12 +26,6 @@ typedef struct WINMEM_INFO_MODULE {
     HMODULE hModule;                  // Module handle in processID's context
     CHAR name[MAX_MODULE_NAME32 + 1]; // Module name
 } ModuleInfo, *pModuleInfo; 
-
-typedef enum WINMEM_SNAPSHOT_TYPE {
-    WINMEM_SNAPPROCESS, // Callback type for processes
-    WINMEM_SNAPTHREAD,  // Callback type for threads
-    WINMEM_SNAPMODULE   // Callback type for modules
-} SnapshotType;
 
 #define WINMEM_CANREAD (PAGE_READONLY | PAGE_EXECUTE_READ)
 #define WINMEM_CANWRITE (PAGE_READWRITE | PAGE_EXECUTE_READWRITE)
@@ -227,3 +223,19 @@ SIZE_T WriteMemory(HANDLE hProcess, LPVOID address, LPVOID buffer, SIZE_T size);
  * @return         Address where the pattern is found, or 0 if not found.
  */
 UINT_PTR PatternScan(HANDLE hProcess, BYTE *pattern, SIZE_T size);
+
+/**
+ * Exports data from the memory of a target process to a file.
+ *
+ * This function reads a specified range of memory from the process with the given handle
+ * and writes the data to the provided file stream. Before reading, it checks whether
+ * the memory is readable.
+ *
+ * @param hProcess   Handle to the target process from which memory will be exported.
+ * @param address    Starting address of the memory to export.
+ * @param size       Size of the data to export (in bytes).
+ * @param fStream    File stream to which the data will be written.
+ *
+ * @return           The number of bytes successfully exported. If an error occurs,
+ */
+SIZE_T ExportMemory(HANDLE hProcess, LPCVOID address, SIZE_T size);

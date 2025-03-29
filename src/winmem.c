@@ -1,23 +1,25 @@
 #include "winmem.h"
 
+typedef enum wmsnaptype {
+    WINMEM_SNAPPROCESS, // Callback type for processes
+    WINMEM_SNAPTHREAD,  // Callback type for threads
+    WINMEM_SNAPMODULE   // Callback type for modules
+} SnapshotType;
+
 typedef struct wmsnapshot {
     SnapshotType type;
     void *entry;
 } Snapshot;
 
-typedef enum WINMEM_LOG_LEVEL {
+typedef enum wmloglevel {
     WINMEM_LOG_INFO,    // Informational log level
     WINMEM_LOG_WARNING, // Warning log level
     WINMEM_LOG_ERROR    // Error log level
 } LogLevel;
 
-typedef BOOL (*SnapshotCallback)(Snapshot*, void*);
-typedef BOOL (*SnapshotFirstFunc)(HANDLE, void*);
-typedef BOOL (*SnapshotNextFunc)(HANDLE, void*);
-
 typedef struct wmwindata {
-    DWORD   processID;    // Process ID associated with the window
-    HWND    hwnd;   // Handle to the window
+    DWORD   processID;      // Process ID associated with the window
+    HWND    hwnd;           // Handle to the window
 } WindowData;
 
 typedef struct wmprocdata {
@@ -27,9 +29,9 @@ typedef struct wmprocdata {
 } FindProcessData;
 
 typedef struct wmthreaddata {
-    DWORD       processID;          // Process ID associated with the thread
-    DWORD       idToFind;     // Thread ID to find
-    pThreadInfo info;         // Pointer to store thread information
+    DWORD       processID;  // Process ID associated with the thread
+    DWORD       idToFind;   // Thread ID to find
+    pThreadInfo info;       // Pointer to store thread information
 } FindThreadData;
 
 typedef struct wmmoduledata {
@@ -52,24 +54,47 @@ typedef struct wmenummoduledata {
     void *userData;
 } EnumModuleData;
 
+typedef BOOL (*SnapshotCallback)(Snapshot*, void*);
+typedef BOOL (*SnapshotFirstFunc)(HANDLE, void*);
+typedef BOOL (*SnapshotNextFunc)(HANDLE, void*);
+
 int _wmLogImpl(LogLevel level, const char *funcName, const char *const _Format, ...) {
     va_list args;
     va_start(args, _Format);
     const char* levelStr;
+    int result = 0;
+    void *outstream = NULL;
+
     switch (level) {
-        case WINMEM_LOG_INFO:    levelStr = "INFO"; break;
-        case WINMEM_LOG_WARNING: levelStr = "WARNING"; break;
-        case WINMEM_LOG_ERROR:   levelStr = "ERROR"; break;
-        default:                 levelStr = "MESSAGE"; break;
+        case WINMEM_LOG_INFO:
+            levelStr = "INFO";
+            outstream = stdout;
+            break;
+
+        case WINMEM_LOG_WARNING:
+            levelStr = "WARNING";
+            outstream = stdout;
+            break;
+            
+        case WINMEM_LOG_ERROR:
+            levelStr = "ERROR";
+            outstream = stderr;
+            break;
+
+        default:
+            levelStr = "MESSAGE";
+            outstream = stdout;
+            break;
     }
-    printf_s("[%s] [%s] ", levelStr, funcName);
-    int result = vprintf_s(_Format, args);
-    printf_s("\n");
+    
+    fprintf_s(outstream, "[%s] [%s] ", levelStr, funcName);
+    result = vfprintf_s(outstream, _Format, args);
+    fprintf_s(outstream, "\n");
     va_end(args);
-    return result; // basically same as printf it return amount of chars
+    return result; // returnы amount of chars
 }
 
-#if 0
+#if 1
     #define wmLog(level, _Format, ...) _wmLogImpl(level, __FUNCTION__, _Format, ##__VA_ARGS__)
 #else
     #define wmLog(...)
@@ -139,10 +164,9 @@ BOOL _FindProcessByNameCallback(Snapshot *snapshot, void *userData) {
         data->idToFind = procEntry->th32ProcessID;
         wmLog(WINMEM_LOG_INFO, "Process found: %s", data->nameToFind);
         return FALSE;
-    } else {
-        wmLog(WINMEM_LOG_INFO, "Checking process: %s", procEntry->szExeFile);
-        return TRUE;
     }
+    wmLog(WINMEM_LOG_INFO, "Checking process: %s", procEntry->szExeFile);
+    return TRUE;
 }
 
 BOOL _TraverseSnapshots(DWORD dwFlags, DWORD th32ProcessID, size_t dwSize,
@@ -187,7 +211,7 @@ BOOL _TraverseSnapshots(DWORD dwFlags, DWORD th32ProcessID, size_t dwSize,
 
     CloseHandle(hSnapshot);
     free(snapshot->entry);
-    return TRUE;
+    return FALSE;
 }
 
 BOOL _TraverseProcesses(DWORD processID, SnapshotCallback callback, void *userData) {
@@ -518,6 +542,7 @@ BOOL IsMemoryProtected(HANDLE hProcess, LPCVOID address, DWORD protectionFlag) {
         wmLog(WINMEM_LOG_ERROR, "VirtualQueryEx failed for address %p. Error code: %lu", address, GetLastError());
         return FALSE;
     }
+
     if (mbi.State != MEM_COMMIT) {
         wmLog(WINMEM_LOG_WARNING, "Memory at %p is not committed (State: 0x%X)", address, mbi.State);
         return FALSE;
@@ -535,6 +560,9 @@ BOOL IsMemoryProtected(HANDLE hProcess, LPCVOID address, DWORD protectionFlag) {
         case WINMEM_NOACCESS:
             isProtected = (mbi.Protect & (PAGE_NOACCESS | PAGE_GUARD)) != 0;
             break;
+        default:
+            isProtected = (mbi.Protect & protectionFlag) != 0;
+            break;
     }
 
     wmLog(WINMEM_LOG_INFO, "Memory at %p: Protect=0x%X, Requested=0x%X, Protected=%d",
@@ -547,10 +575,12 @@ BOOL ProtectMemory(HANDLE hProcess, LPVOID address, SIZE_T size, DWORD newProtec
     if (hProcess == INVALID_HANDLE_VALUE || address == NULL || size == 0 || newProtect == 0 || pOldProtect == NULL) {
         return FALSE;
     }
+
     if (VirtualProtectEx(hProcess, address, size, newProtect, pOldProtect)) {
         wmLog(WINMEM_LOG_INFO, "Memory protection flag changed at %p to %zu", address, newProtect);
         return TRUE;
     }
+
     wmLog(WINMEM_LOG_INFO, "Failed to set memory protection at %p. Error code: %lu", address, GetLastError());
     return FALSE;
 }
@@ -559,13 +589,40 @@ SIZE_T ReadMemory(HANDLE hProcess, LPCVOID address, LPVOID buffer, SIZE_T size) 
     if (hProcess == INVALID_HANDLE_VALUE || address == NULL || buffer == NULL || size == 0) return 0;
 
     SIZE_T bytesRead = 0;
-    if (IsMemoryProtected(hProcess, address, WINMEM_CANREAD)) {
+    DWORD oldProtect = 0;
+    BOOL isProtected = FALSE;
+    BOOL canRead = TRUE;
+    MEMORY_BASIC_INFORMATION mbi = {0};
+    if (!IsMemoryProtected(hProcess, address, WINMEM_CANREAD)) {
+        canRead = FALSE;
+        GetMemoryInfo(hProcess, (LPVOID)address, &mbi);
+        wmLog(WINMEM_LOG_INFO, "Cannot read from memory page %p", mbi.BaseAddress);
+        wmLog(WINMEM_LOG_INFO, "Trying to change memory page %p protection", mbi.BaseAddress);
+        if (VirtualProtectEx(hProcess, (LPVOID)mbi.BaseAddress, mbi.RegionSize, PAGE_READWRITE, &oldProtect)) {
+            wmLog(WINMEM_LOG_INFO, "Memory page %p protection changed: 0x%X", mbi.BaseAddress, WINMEM_CANWRITE);
+            isProtected = TRUE;
+            canRead = TRUE;
+        }
+    }
+
+    if (canRead) {
         if (ReadProcessMemory(hProcess, address, buffer, size, &bytesRead)) {
             wmLog(WINMEM_LOG_INFO, "Read %zu bytes from address %p", bytesRead, address);
-            return bytesRead;
         }
+    }
+
+    if (isProtected) {
+        DWORD temp;
+        if(VirtualProtectEx(hProcess, (LPVOID)mbi.BaseAddress, mbi.RegionSize, oldProtect, &temp)) {
+            isProtected = FALSE;
+            wmLog(WINMEM_LOG_INFO, "Memory page %p protection restored: 0x%X", mbi.BaseAddress, oldProtect);
+        }
+    }
+
+    if (bytesRead <= 0) {
         wmLog(WINMEM_LOG_ERROR, "Failed to read %zu bytes from address %p. Error code: %lu", size, address, GetLastError());
     }
+    
     return bytesRead;
 }
 
@@ -592,17 +649,21 @@ SIZE_T WriteMemory(HANDLE hProcess, LPVOID address, LPVOID buffer, SIZE_T size) 
     if (canWrite) {
         if (WriteProcessMemory(hProcess, address, buffer, size, &bytesWritten)) {
             wmLog(WINMEM_LOG_INFO, "Write %zu bytes to address %p", bytesWritten, address);
-            if (isProtected) {
-                DWORD temp;
-                if(VirtualProtectEx(hProcess, (LPVOID)mbi.BaseAddress, mbi.RegionSize, oldProtect, &temp)) {
-                    wmLog(WINMEM_LOG_INFO, "Memory page %p protection restored: 0x%X", mbi.BaseAddress, oldProtect);
-                }
-            }
-            return bytesWritten;
         }
     }
 
-    wmLog(WINMEM_LOG_ERROR, "Failed to write %zu bytes to address %p. Error code: %lu", size, address, GetLastError());
+    if (isProtected) {
+        DWORD temp;
+        if(VirtualProtectEx(hProcess, (LPVOID)mbi.BaseAddress, mbi.RegionSize, oldProtect, &temp)) {
+            wmLog(WINMEM_LOG_INFO, "Memory page %p protection restored: 0x%X", mbi.BaseAddress, oldProtect);
+            isProtected = FALSE;
+        }
+    }
+
+    if (bytesWritten <= 0) {
+        wmLog(WINMEM_LOG_ERROR, "Failed to write %zu bytes to address %p. Error code: %lu", size, address, GetLastError());
+    }
+
     return bytesWritten;
 }
 
@@ -691,4 +752,42 @@ UINT_PTR PatternScan(HANDLE hProcess, BYTE *pattern, SIZE_T size) {
     free(buffer);
     wmLog(WINMEM_LOG_INFO, "Pattern not found in scanned memory");
     return 0;
+}
+
+SIZE_T ExportMemory(HANDLE hProcess, LPCVOID address, SIZE_T size) {
+    if (hProcess == NULL || address == NULL || size == 0) return 0;
+
+    char fileName[MAX_PATH];
+    SIZE_T bytesExported = 0;
+    SIZE_T bytesRead = 0;
+
+    if (!IsMemoryProtected(hProcess, address, WINMEM_CANREAD)) {
+        wmLog(WINMEM_LOG_ERROR, "Memory is not available %p.", address);
+        return 0;
+    }
+
+    BYTE *buffer = malloc(size);
+    if (buffer == NULL) {
+        wmLog(WINMEM_LOG_ERROR, "Memory allocation failed.");
+        return 0;
+    }
+
+    // constructing the file name string
+    snprintf(fileName, sizeof(fileName), "winmem_dump_0x%p_%zu", address, size);
+
+    FILE *file = fopen(fileName, "w");
+    
+    if (ReadProcessMemory(hProcess, address, buffer, size, &bytesRead) && bytesRead > 0) {
+        bytesExported = fwrite(buffer, sizeof(BYTE), size, file);
+        if (bytesExported <= 0) {
+            free(buffer);
+            wmLog(WINMEM_LOG_ERROR, "Memory export failed.");
+            return 0;
+        }
+        wmLog(WINMEM_LOG_INFO, "Memory at %p with size of %zu exported to file.", address, size);
+    }
+
+    fclose(file);
+    free(buffer);
+    return bytesExported;
 }
