@@ -128,7 +128,7 @@ HANDLE AttachByWindow(HWND hWindow, DWORD access);
  * @param hProcess The handle to the process to detach from.
  *                 If the handle is INVALID_HANDLE_VALUE, the function does nothing.
  */
-void Deattach(HANDLE hProcess);
+void Detach(HANDLE hProcess);
 
 /**
  * Enumerates all threads in the system and calls the provided callback function for each thread.

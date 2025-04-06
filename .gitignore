@@ -58,8 +58,10 @@ TODO.md
 # VSCode
 .vscode
 
-# bin folder
+# folders
 bin
+lib
 
 # c files
 main.c
+test.c

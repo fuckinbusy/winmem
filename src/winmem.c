@@ -94,7 +94,7 @@ int _wmLogImpl(LogLevel level, const char *funcName, const char *const _Format, 
     return result; // returnы amount of chars
 }
 
-#if 1
+#ifdef ENABLE_LOGGING
     #define wmLog(level, _Format, ...) _wmLogImpl(level, __FUNCTION__, _Format, ##__VA_ARGS__)
 #else
     #define wmLog(...)
@@ -202,7 +202,8 @@ BOOL _TraverseSnapshots(DWORD dwFlags, DWORD th32ProcessID, size_t dwSize,
     }
 
     do {
-        if (!callback(snapshot, userData)) {
+        BOOLEAN cbResult = (BOOLEAN)callback(snapshot, userData);
+        if (!cbResult) {
             CloseHandle(hSnapshot);
             free(snapshot->entry);
             return TRUE;
@@ -400,10 +401,10 @@ BOOL GetProcessInfo(LPCSTR processName, DWORD processID, pProcessInfo info) {
     if (processID == 0 && processName == NULL) return FALSE;
     FindProcessData data = { .idToFind = processID, .nameToFind = processName, .info = info };
     if (!_TraverseProcesses(0, _GetSnapshotInfoCallback, &data)) {
-        wmLog(WINMEM_LOG_ERROR, "Process not found: %d", processID);
+        wmLog(WINMEM_LOG_ERROR, "Process not found: %s | %d", processName, processID);
         return FALSE;
     } else {
-        wmLog(WINMEM_LOG_INFO, "Process found: %d", processID);
+        wmLog(WINMEM_LOG_INFO, "Process found: %s | %d", processName, processID);
         return TRUE;
     }
     return FALSE;
@@ -482,13 +483,13 @@ HANDLE AttachByWindow(HWND hWindow, DWORD access) {
     return process;
 }
 
-void Deattach(HANDLE hProcess) {
+void Detach(HANDLE hProcess) {
     if (INVALID_HANDLE_VALUE == hProcess) {
         wmLog(WINMEM_LOG_ERROR, "Handle does not exist.");
         return;
     }
     CloseHandle(hProcess);
-    wmLog(WINMEM_LOG_INFO, "Process deattached.");
+    wmLog(WINMEM_LOG_INFO, "Process detached.");
 }
 
 BOOL EnumThreads(EnumThreadsCallback callback, void *userData) {
