@@ -1,4 +1,9 @@
 #include "winmem.h"
+#include <basetsd.h>
+#include <memoryapi.h>
+#include <minwindef.h>
+#include <stdio.h>
+#include <string.h>
 
 typedef enum {
     WINMEM_SNAPPROCESS, // Callback type for processes
@@ -18,20 +23,20 @@ typedef enum {
 } LogLevel;
 
 typedef struct {
-    DWORD   processID;      // Process ID associated with the window
-    HWND    hwnd;           // Handle to the window
+    DWORD   processID;
+    HWND    hwnd;
 } WindowData;
 
 typedef struct {
-    LPCSTR       nameToFind; // Name of the process to find
-    DWORD        idToFind;   // Process ID to find
-    pProcessInfo info;       // Pointer to store process information
+    LPCSTR       nameToFind;
+    DWORD        idToFind;
+    pProcessInfo info;
 } FindProcessData;
 
 typedef struct {
-    DWORD       processID;  // Process ID associated with the thread
-    DWORD       idToFind;   // Thread ID to find
-    pThreadInfo info;       // Pointer to store thread information
+    DWORD       processID;
+    DWORD       idToFind;
+    pThreadInfo info;
 } FindThreadData;
 
 typedef struct {
@@ -91,7 +96,7 @@ int _wmLogImpl(LogLevel level, const char *funcName, const char *const _Format, 
     result = vfprintf_s(outstream, _Format, args);
     fprintf_s(outstream, "\n");
     va_end(args);
-    return result; // returnы amount of chars
+    return result; // return amount of chars
 }
 
 #ifdef ENABLE_LOGGING
@@ -755,6 +760,38 @@ UINT_PTR PatternScan(HANDLE hProcess, BYTE *pattern, SIZE_T size) {
     return 0;
 }
 
+SIZE_T ApplyPatch(HANDLE hProcess, LPVOID address, BYTE *newBytes, SIZE_T size, BYTE *oldBytes) {
+    if (hProcess == NULL || newBytes == NULL || address == NULL) return 0;
+
+    SIZE_T nBytesWritten = 0;
+    SIZE_T nBytesRead = 0;
+
+    BOOL readMemResult = ReadProcessMemory(hProcess, (LPCVOID)address, oldBytes, size, &nBytesRead);
+    if (!readMemResult || nBytesRead <= 0) {
+        wmLog(WINMEM_LOG_ERROR, "Failed to read memory");
+    }
+
+    BOOL writeMemResult = WriteProcessMemory(hProcess, address, newBytes, size, &nBytesWritten);    
+    if (!writeMemResult) {
+        wmLog(WINMEM_LOG_ERROR, "Failed to apply patch");
+    }
+    
+    return writeMemResult;
+}
+
+SIZE_T RevertPatch(HANDLE hProcess, LPVOID address, BYTE *oldBytes, SIZE_T size) {
+    if (hProcess == NULL || address == NULL || oldBytes == NULL) return 0;
+
+    size_t nBytesWritten = 0;
+
+    BOOL writeMemResult = WriteProcessMemory(hProcess, address, oldBytes, size, &nBytesWritten);
+    if (!writeMemResult) {
+        wmLog(WINMEM_LOG_ERROR, "Failed to revert patch");
+    }
+
+    return nBytesWritten;
+}
+
 SIZE_T ExportMemory(HANDLE hProcess, LPCVOID address, SIZE_T size) {
     if (hProcess == NULL || address == NULL || size == 0) return 0;
 
@@ -776,7 +813,8 @@ SIZE_T ExportMemory(HANDLE hProcess, LPCVOID address, SIZE_T size) {
     // constructing the file name string
     snprintf(fileName, sizeof(fileName), "winmem_dump_0x%p_%zu", address, size);
 
-    FILE *file = fopen(fileName, "w");
+    FILE *file;
+    fopen_s(&file, fileName, "w");
     
     if (ReadProcessMemory(hProcess, address, buffer, size, &bytesRead) && bytesRead > 0) {
         bytesExported = fwrite(buffer, sizeof(BYTE), size, file);

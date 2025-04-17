@@ -225,6 +225,36 @@ SIZE_T WriteMemory(HANDLE hProcess, LPVOID address, LPVOID buffer, SIZE_T size);
 UINT_PTR PatternScan(HANDLE hProcess, BYTE *pattern, SIZE_T size);
 
 /**
+ * @brief Applies a memory patch to a target process.
+ * 
+ * This function reads the original bytes from the specified memory address,
+ * then writes new bytes to it. The original bytes are saved for later reversion.
+ * 
+ * @param hProcess   Handle to the target process (must have PROCESS_VM_READ/WRITE).
+ * @param address    Memory address to patch.
+ * @param newBytes   Pointer to the new byte array to write.
+ * @param size       Number of bytes to patch.
+ * @param oldBytes   Output buffer to store the original bytes (must be pre-allocated).
+ * 
+ * @return Number of bytes successfully written, or 0 on failure.
+ */
+SIZE_T ApplyPatch(HANDLE hProcess, LPVOID address, BYTE *newBytes, SIZE_T size, BYTE *oldBytes);
+
+/**
+ * @brief Reverts a previously applied memory patch.
+ * 
+ * Restores the original bytes saved by ApplyPatch() at the specified address.
+ * 
+ * @param hProcess   Handle to the target process (must have PROCESS_VM_WRITE).
+ * @param address    Memory address to revert.
+ * @param oldBytes   Original bytes saved by ApplyPatch().
+ * @param size       Number of bytes to revert (must match ApplyPatch's size).
+ * 
+ * @return Number of bytes successfully restored, or 0 on failure.
+ */
+SIZE_T RevertPatch(HANDLE hProcess, LPVOID address, BYTE *oldBytes, SIZE_T size);
+
+/**
  * Exports data from the memory of a target process to a file.
  *
  * This function reads a specified range of memory from the process with the given handle
