@@ -37,6 +37,13 @@ typedef BOOL (*EnumThreadsCallback)(pThreadInfo, void*);
 typedef BOOL (*EnumProcessesCallback)(pProcessInfo, void*);
 typedef BOOL (*EnumModulesCallback)(pModuleInfo, void*);
 
+#define WM_READ_MEMORY(hProcess, lpcAddress, lpBuffer, type)\
+        ReadMemory((hProcess), (lpcAddress), (lpBuffer), sizeof(type))
+
+#define WM_WRITE_MEMORY(hProcess, lpAddress, lpBuffer, type)\
+        WriteMemory((hProcess), (lpAddress), (lpBuffer), sizeof(type))
+        // SIZE_T WriteMemory(HANDLE hProcess, LPVOID address, LPVOID buffer, SIZE_T size);
+
 /**
  * Finds a window by its name.
  * @param windowName The name of the window to find.
