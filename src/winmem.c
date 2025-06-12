@@ -332,7 +332,7 @@ BOOL _GetSnapshotInfoCallback(Snapshot *snapshot, void *userData) {
     return FALSE;
 }
 
-HWND GetWindowByName(LPCSTR windowName) {
+WINMEM_API HWND GetWindowByName(LPCSTR windowName) {
     if (windowName == NULL) return NULL;
     HWND hwnd = FindWindow(NULL, windowName);
     if (hwnd == NULL) {
@@ -343,7 +343,7 @@ HWND GetWindowByName(LPCSTR windowName) {
     return hwnd;
 }
 
-HWND GetWindowByPID(DWORD processID) {
+WINMEM_API HWND GetWindowByPID(DWORD processID) {
     if (processID <= 0) return NULL;
     WindowData windata = { processID, NULL };
     EnumWindows(_EnumWindowsCallback, (LPARAM)&windata);
@@ -355,7 +355,7 @@ HWND GetWindowByPID(DWORD processID) {
     return windata.hwnd;
 }
 
-DWORD GetPIDByName(LPCSTR processName) {
+WINMEM_API DWORD GetPIDByName(LPCSTR processName) {
     if (processName == NULL) return 0;
 
     FindProcessData procData = { processName, 0, NULL};
@@ -368,7 +368,7 @@ DWORD GetPIDByName(LPCSTR processName) {
     return procData.idToFind;
 }
 
-DWORD GetPIDByWindowName(LPCSTR windowName) {
+WINMEM_API DWORD GetPIDByWindowName(LPCSTR windowName) {
     if (windowName == NULL) return FALSE;
     DWORD processID;
     HWND hWindow = FindWindow(NULL, windowName);
@@ -385,7 +385,7 @@ DWORD GetPIDByWindowName(LPCSTR windowName) {
 
 // TODO: code repetition can be reduced here
 // should be like: GetSnapshotInfo(void *IdOrName, DWORD processID, void *info)
-BOOL GetThreadInfo(DWORD threadID, DWORD processID, pThreadInfo info) {
+WINMEM_API BOOL GetThreadInfo(DWORD threadID, DWORD processID, pThreadInfo info) {
     if (info == NULL) return FALSE;
     if (processID == 0) return FALSE;
     FindThreadData data = { .processID = processID, .idToFind = threadID, .info = info };
@@ -401,7 +401,7 @@ BOOL GetThreadInfo(DWORD threadID, DWORD processID, pThreadInfo info) {
     return FALSE;
 }
 
-BOOL GetProcessInfo(LPCSTR processName, DWORD processID, pProcessInfo info) {
+WINMEM_API BOOL GetProcessInfo(LPCSTR processName, DWORD processID, pProcessInfo info) {
     if (info == NULL) return FALSE;
     if (processID == 0 && processName == NULL) return FALSE;
     FindProcessData data = { .idToFind = processID, .nameToFind = processName, .info = info };
@@ -415,7 +415,7 @@ BOOL GetProcessInfo(LPCSTR processName, DWORD processID, pProcessInfo info) {
     return FALSE;
 }
 
-BOOL GetModuleInfo(LPCSTR moduleName, DWORD processID, pModuleInfo info) {
+WINMEM_API BOOL GetModuleInfo(LPCSTR moduleName, DWORD processID, pModuleInfo info) {
     if (moduleName == NULL) return FALSE;
     if (processID == 0) return FALSE;
     if (info == NULL) return FALSE;
@@ -430,7 +430,7 @@ BOOL GetModuleInfo(LPCSTR moduleName, DWORD processID, pModuleInfo info) {
     return FALSE;
 }
 
-HANDLE AttachByPID(DWORD processID, DWORD access) {
+WINMEM_API HANDLE AttachByPID(DWORD processID, DWORD access) {
     if (processID == 0) { return INVALID_HANDLE_VALUE; }
 
     HANDLE process = OpenProcess(access, FALSE, processID);
@@ -443,7 +443,7 @@ HANDLE AttachByPID(DWORD processID, DWORD access) {
     return INVALID_HANDLE_VALUE;
 }
 
-HANDLE AttachByName(LPCSTR processName, DWORD access) {
+WINMEM_API HANDLE AttachByName(LPCSTR processName, DWORD access) {
     if (processName == NULL) { return INVALID_HANDLE_VALUE; }
 
     HANDLE process = NULL;
@@ -461,7 +461,7 @@ HANDLE AttachByName(LPCSTR processName, DWORD access) {
     return process;
 }
 
-HANDLE AttachByWindowName(LPCSTR windowName, DWORD access) {
+WINMEM_API HANDLE AttachByWindowName(LPCSTR windowName, DWORD access) {
     if (windowName == NULL) { return INVALID_HANDLE_VALUE; }
     HANDLE process = NULL;
     DWORD processID = GetPIDByWindowName(windowName);
@@ -474,7 +474,7 @@ HANDLE AttachByWindowName(LPCSTR windowName, DWORD access) {
     return process;
 }
 
-HANDLE AttachByWindow(HWND hWindow, DWORD access) {
+WINMEM_API HANDLE AttachByWindow(HWND hWindow, DWORD access) {
     if (hWindow == NULL) { return INVALID_HANDLE_VALUE; }
     HANDLE process = NULL;
     DWORD processID = 0;
@@ -488,7 +488,7 @@ HANDLE AttachByWindow(HWND hWindow, DWORD access) {
     return process;
 }
 
-void Detach(HANDLE hProcess) {
+WINMEM_API void Detach(HANDLE hProcess) {
     if (INVALID_HANDLE_VALUE == hProcess) {
         wmLog(WINMEM_LOG_ERROR, "Handle does not exist.");
         return;
@@ -497,7 +497,7 @@ void Detach(HANDLE hProcess) {
     wmLog(WINMEM_LOG_INFO, "Process detached.");
 }
 
-BOOL EnumThreads(EnumThreadsCallback callback, void *userData) {
+WINMEM_API BOOL EnumThreads(EnumThreadsCallback callback, void *userData) {
     if (callback == NULL) return FALSE;
 
     EnumThreadData data = {.callback = callback, .userData = userData};
@@ -507,7 +507,7 @@ BOOL EnumThreads(EnumThreadsCallback callback, void *userData) {
     return FALSE;
 }
 
-BOOL EnumProcesses(EnumProcessesCallback callback, void *userData) {
+WINMEM_API BOOL EnumProcesses(EnumProcessesCallback callback, void *userData) {
     if (callback == NULL) return FALSE;
     
     EnumProcessData data = {.callback = callback, .userData = userData};
@@ -517,7 +517,7 @@ BOOL EnumProcesses(EnumProcessesCallback callback, void *userData) {
     return FALSE;
 }
 
-BOOL EnumModules(DWORD processID, EnumModulesCallback callback, void *userData) {
+WINMEM_API BOOL EnumModules(DWORD processID, EnumModulesCallback callback, void *userData) {
     if (processID == 0 || callback == NULL) return FALSE;
 
     EnumModuleData data = {.callback = callback, .userData = userData};
@@ -527,12 +527,12 @@ BOOL EnumModules(DWORD processID, EnumModulesCallback callback, void *userData) 
     return FALSE;
 }
 
-SIZE_T GetMemoryInfo(HANDLE hProcess, LPCVOID address, PMEMORY_BASIC_INFORMATION buffer) {
+WINMEM_API SIZE_T GetMemoryInfo(HANDLE hProcess, LPCVOID address, PMEMORY_BASIC_INFORMATION buffer) {
     if (hProcess == INVALID_HANDLE_VALUE || address == NULL || buffer == NULL) return 0;
     return VirtualQueryEx(hProcess, address, buffer, sizeof(MEMORY_BASIC_INFORMATION));
 }
 
-UINT_PTR GetModuleBaseAddress(DWORD processID, LPCSTR name) {
+WINMEM_API UINT_PTR GetModuleBaseAddress(DWORD processID, LPCSTR name) {
     if (name == NULL || processID == 0) return 0;
 
     ModuleInfo info = {0};
@@ -542,7 +542,7 @@ UINT_PTR GetModuleBaseAddress(DWORD processID, LPCSTR name) {
     return 0;
 }
 
-BOOL IsMemoryProtected(HANDLE hProcess, LPCVOID address, DWORD protectionFlag) {
+WINMEM_API BOOL IsMemoryProtected(HANDLE hProcess, LPCVOID address, DWORD protectionFlag) {
     MEMORY_BASIC_INFORMATION mbi = {0};
     if (VirtualQueryEx(hProcess, address, &mbi, sizeof(mbi)) == 0) {
         wmLog(WINMEM_LOG_ERROR, "VirtualQueryEx failed for address %p. Error code: %lu", address, GetLastError());
@@ -577,7 +577,7 @@ BOOL IsMemoryProtected(HANDLE hProcess, LPCVOID address, DWORD protectionFlag) {
     return isProtected;
 }
 
-BOOL ProtectMemory(HANDLE hProcess, LPVOID address, SIZE_T size, DWORD newProtect, PDWORD pOldProtect) {
+WINMEM_API BOOL ProtectMemory(HANDLE hProcess, LPVOID address, SIZE_T size, DWORD newProtect, PDWORD pOldProtect) {
     if (hProcess == INVALID_HANDLE_VALUE || address == NULL || size == 0 || newProtect == 0 || pOldProtect == NULL) {
         return FALSE;
     }
@@ -591,7 +591,7 @@ BOOL ProtectMemory(HANDLE hProcess, LPVOID address, SIZE_T size, DWORD newProtec
     return FALSE;
 }
 
-SIZE_T ReadMemory(HANDLE hProcess, LPCVOID address, LPVOID buffer, SIZE_T size) {
+WINMEM_API SIZE_T ReadMemory(HANDLE hProcess, LPCVOID address, LPVOID buffer, SIZE_T size) {
     if (hProcess == INVALID_HANDLE_VALUE || address == NULL || buffer == NULL || size == 0) return 0;
 
     SIZE_T bytesRead = 0;
@@ -632,7 +632,7 @@ SIZE_T ReadMemory(HANDLE hProcess, LPCVOID address, LPVOID buffer, SIZE_T size) 
     return bytesRead;
 }
 
-SIZE_T WriteMemory(HANDLE hProcess, LPVOID address, LPVOID buffer, SIZE_T size) {
+WINMEM_API SIZE_T WriteMemory(HANDLE hProcess, LPVOID address, LPVOID buffer, SIZE_T size) {
     if (hProcess == INVALID_HANDLE_VALUE || address == NULL || buffer == NULL || size == 0) return 0;
 
     SIZE_T bytesWritten = 0;
@@ -673,7 +673,7 @@ SIZE_T WriteMemory(HANDLE hProcess, LPVOID address, LPVOID buffer, SIZE_T size) 
     return bytesWritten;
 }
 
-UINT_PTR PatternScan(HANDLE hProcess, BYTE *pattern, SIZE_T size) {
+WINMEM_API UINT_PTR PatternScan(HANDLE hProcess, BYTE *pattern, SIZE_T size) {
     if (hProcess == INVALID_HANDLE_VALUE || pattern == NULL || size == 0) return 0;
 
     SYSTEM_INFO sysInfo = {0};
@@ -760,7 +760,7 @@ UINT_PTR PatternScan(HANDLE hProcess, BYTE *pattern, SIZE_T size) {
     return 0;
 }
 
-SIZE_T ApplyPatch(HANDLE hProcess, LPVOID address, BYTE *newBytes, SIZE_T size, BYTE *oldBytes) {
+WINMEM_API SIZE_T ApplyPatch(HANDLE hProcess, LPVOID address, BYTE *newBytes, SIZE_T size, BYTE *oldBytes) {
     if (hProcess == NULL || newBytes == NULL || address == NULL) return 0;
 
     SIZE_T nBytesWritten = 0;
@@ -779,7 +779,7 @@ SIZE_T ApplyPatch(HANDLE hProcess, LPVOID address, BYTE *newBytes, SIZE_T size, 
     return writeMemResult;
 }
 
-SIZE_T RevertPatch(HANDLE hProcess, LPVOID address, BYTE *oldBytes, SIZE_T size) {
+WINMEM_API SIZE_T RevertPatch(HANDLE hProcess, LPVOID address, BYTE *oldBytes, SIZE_T size) {
     if (hProcess == NULL || address == NULL || oldBytes == NULL) return 0;
 
     size_t nBytesWritten = 0;
@@ -792,7 +792,7 @@ SIZE_T RevertPatch(HANDLE hProcess, LPVOID address, BYTE *oldBytes, SIZE_T size)
     return nBytesWritten;
 }
 
-SIZE_T ExportMemory(HANDLE hProcess, LPCVOID address, SIZE_T size) {
+WINMEM_API SIZE_T ExportMemory(HANDLE hProcess, LPCVOID address, SIZE_T size) {
     if (hProcess == NULL || address == NULL || size == 0) return 0;
 
     char fileName[MAX_PATH];
@@ -814,7 +814,7 @@ SIZE_T ExportMemory(HANDLE hProcess, LPCVOID address, SIZE_T size) {
     snprintf(fileName, sizeof(fileName), "winmem_dump_0x%p_%zu", address, size);
 
     FILE *file;
-    fopen_s(&file, fileName, "w");
+    fopen_s(&file, fileName, "wb");
     
     if (ReadProcessMemory(hProcess, address, buffer, size, &bytesRead) && bytesRead > 0) {
         bytesExported = fwrite(buffer, sizeof(BYTE), size, file);
