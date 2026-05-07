@@ -16,7 +16,7 @@ WmResult wm__openProcess(WmProcess *process, DWORD access, BOOL inheritHandle, D
     uint32_t slot = 0;
     WmResult allocRes = wm__handleAlloc(&slot);
     if (allocRes != WM_OK) {
-        CloseHandle(process);
+        CloseHandle(native);
         return allocRes;
     }
 
@@ -24,7 +24,7 @@ WmResult wm__openProcess(WmProcess *process, DWORD access, BOOL inheritHandle, D
     entry->active = true;
     entry->native = native;
     entry->id = id;
-    entry->flags = access;
+    entry->access = access;
 
     HMODULE module;
     DWORD cbNeeded;

@@ -38,11 +38,11 @@ typedef struct {
     bool active;
     HANDLE native;
     DWORD id;
-    DWORD flags;
+    DWORD access;
     wchar_t name[WM_MAX_NAME];
 } WmHandleEntry;
 
-static WmHandleEntry g_Handles[WM_MAX_HANDLES];
+extern WmHandleEntry g_Handles[WM_MAX_HANDLES];
 
 WmResult wm__handleAlloc(uint32_t *slot);
 WmResult wm__handleFree(uint32_t slot);

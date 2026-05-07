@@ -1,6 +1,8 @@
 #include "wm_internal.h"
 #include "string.h"
 
+WmHandleEntry g_Handles[WM_MAX_HANDLES] = { 0 };
+
 WmResult wm__handleAlloc(uint32_t *slot)
 {
     if (!slot) {
@@ -53,6 +55,6 @@ WmResult wm__handleGet(uint32_t slot, WmHandleEntry **entry)
     }
 
     *entry = &g_Handles[slot];
-    wmLogI(WM_STR("entry retrieved (slot %u"), slot);
+    wmLogI(WM_STR("entry retrieved (slot %u)"), slot);
     return WM_OK;
 }

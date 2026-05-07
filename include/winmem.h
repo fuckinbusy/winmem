@@ -4,6 +4,7 @@
 #define _WINMEM_H
 #define _CRT_SECURE_NO_WARNINGS
 #include <stdint.h>
+#include <inttypes.h>
 #include <stddef.h>
 #include <stdbool.h>
 #include <wchar.h>
@@ -58,7 +59,7 @@ typedef enum {
     WM_ACCESS_SUSPEND_RESUME = 0x0800, /* PROCESS_SUSPEND_RESUME */
     WM_ACCESS_DUP_HANDLE     = 0x0040, /* PROCESS_DUP_HANDLE */
 
-    WM_ACCESS_ALL           = 0x001FFFFF, /* PROCESS_ALL_ACCESS */
+    WM_ACCESS_ALL            = 0x001FFFFF, /* PROCESS_ALL_ACCESS */
 } WmAccessFlags;
 
 /* Info structures */
@@ -94,6 +95,12 @@ WM_API WmResult wmProcessOpenById(WmProcess *out, uint32_t id, WmAccessFlags acc
 WM_API WmResult wmProcessOpenByWindow(WmProcess *out, const wchar_t *windowName, WmAccessFlags access);
 WM_API WmResult wmProcessClose(WmProcess process);
 WM_API WmResult wmProcessEnum(WmEnumProcessFn fn, void *data);
+
+/* Module */
+WM_API WmResult wmModuleFind(WmProcess process, const wchar_t *name, WmModuleInfo *out);
+WM_API WmResult wmModuleEnum(WmProcess process, WmEnumModuleFn fn, void *data);
+WM_API WmResult wmModuleBase(WmProcess process, const wchar_t *name, uintptr_t *out);
+
 
 /* Errors */
 WM_API const char *wmGetErrorStr(WmResult error);
