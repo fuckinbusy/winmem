@@ -1,24 +1,33 @@
 # winmem 2 makefile
-
-MAIN_FILE = tests/test.c
-
-CC      = gcc
-CFLAGS  = -std=c11 -Wall -Wextra -Iinclude -Isrc
-LDFLAGS =
-OUT = build/winmem.exe
-LIB_SRC = $(wildcard src/*.c)
-SRC = $(LIB_SRC) $(MAIN_FILE)
-OBJ = $(patsubst %.c, build/%.o, $(SRC))
+CC                 = gcc
+CFLAGS             = -std=c11 -Wall -Wextra -Iinclude -Isrc
+LDFLAGS            =
+STATIC_OUT         = build/lib/libwinmem_static.a
+DYNAMIC_OUT        = build/bin/winmem.dll
+DYNAMIC_OUT_IMPLIB = build/lib/libwinmem.dll.a
+LIB_SRC            = $(wildcard src/*.c)
+LIB_OBJ            = $(patsubst %.c, build/%.o, $(LIB_SRC))
 
 ifdef DEBUG
 	CFLAGS += -DWM__DEBUG -g
+else
+	CFLAGS += -O2 -Os
 endif
 
-all: $(OUT)
+all: $(STATIC_OUT) $(DYNAMIC_OUT)
 
-$(OUT): $(OBJ)
+static: $(STATIC_OUT)
+
+dynamic: CFLAGS += -DWM__BUILD_DLL
+dynamic: $(DYNAMIC_OUT)
+
+$(STATIC_OUT): $(LIB_OBJ)
 	@if not exist "$(dir $@)" mkdir "$(dir $@)"
-	$(CC) $(CFLAGS) $^ -o $@ $(LDFLAGS)
+	ar rcs $@ $^
+
+$(DYNAMIC_OUT): $(LIB_OBJ)
+	@if not exist "$(dir $@)" mkdir "$(dir $@)"
+	$(CC) -shared $^ -o $@ -Wl,--out-implib,$(DYNAMIC_OUT_IMPLIB) $(LDFLAGS)
 
 build/%.o: %.c
 	@if not exist "$(dir $@)" mkdir "$(dir $@)"
@@ -29,4 +38,4 @@ clean:
 
 rebuild: clean all
 
-.PHONY: all clean rebuild
+.PHONY: all clean rebuild static dynamic
