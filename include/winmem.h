@@ -40,6 +40,7 @@ typedef enum {
     WM_ERROR_PROCESS_NOT_FOUND = -12,
     WM_ERROR_MODULE_NOT_FOUND = -13,
     WM_ERROR_THREAD_NOT_FOUND = -14,
+    WM_ERROR_PARTIAL_COPY = -15
 } WmResult;
 
 /* Flags */
@@ -101,9 +102,16 @@ WM_API WmResult wmModuleFind(WmProcess process, const wchar_t *name, WmModuleInf
 WM_API WmResult wmModuleEnum(WmProcess process, WmEnumModuleFn fn, void *data);
 WM_API WmResult wmModuleBase(WmProcess process, const wchar_t *name, uintptr_t *out);
 
+/* Memory */
+WM_API WmResult wmMemoryRead(WmProcess process, uintptr_t address, void *out, size_t size);
+WM_API WmResult wmMemoryWrite(WmProcess process, uintptr_t address, void *in, size_t size);
+WM_API WmResult wmMemoryProtect(WmProcess process, uintptr_t address, size_t size, unsigned long protect, unsigned long *oldProtect);
+#define wmRead(process, address, out, type) wmMemoryRead((WmProcess)(process), (uintptr_t)(address), (void*)(out), sizeof(type))
+#define wmWrite(process, address, in, type) wmMemoryWrite((WmProcess)(process), (uintptr_t)(address), (void*)(in), sizeof(type))
 
 /* Errors */
 WM_API const char *wmGetErrorStr(WmResult error);
+WM_API const wchar_t *wmGetErrorStrW(WmResult error);
 
 #ifdef __cplusplus
 }

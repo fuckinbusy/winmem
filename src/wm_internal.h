@@ -34,6 +34,19 @@ static void wm__InitUnicodeConsole()
 #define wmLogI(...) ((void)0)
 #endif // WM__DEBUG
 
+#ifdef WM_USE_NATIVE_API
+    #define WM_READ_MEM_IMPL    NtReadVirtualMemory
+    #define WM_WRITE_MEM_IMPL   NtWriteVirtualMemory
+    
+    #define WM_QUERY_MEM_IMPL   VirtualQueryEx
+    #define WM_PROTECT_MEM_IMPL VirtualProtectEx
+#else
+    #define WM_READ_MEM_IMPL    ReadProcessMemory
+    #define WM_WRITE_MEM_IMPL   WriteProcessMemory
+    #define WM_QUERY_MEM_IMPL   VirtualQueryEx
+    #define WM_PROTECT_MEM_IMPL VirtualProtectEx
+#endif // WM_USE_NATIVE_API
+
 typedef struct {
     bool active;
     HANDLE native;

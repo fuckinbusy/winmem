@@ -34,7 +34,6 @@ WmResult wm__openProcess(WmProcess *process, DWORD access, BOOL inheritHandle, D
 
         swprintf(entry->name, MAX_PATH, WM_STR("Process %lu"), id);
     }
-
     entry->name[MAX_PATH - 1] = '\0';
     *process = slot;
 
