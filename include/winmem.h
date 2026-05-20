@@ -63,6 +63,77 @@ typedef enum {
     WM_ACCESS_ALL            = 0x001FFFFF, /* PROCESS_ALL_ACCESS */
 } WmAccessFlags;
 
+typedef enum WmMemoryProtectFlags {
+    WM_PAGE_NOACCESS          = 0x01,
+    WM_PAGE_READONLY          = 0x02,
+    WM_PAGE_READWRITE         = 0x04,
+    WM_PAGE_WRITECOPY         = 0x08,
+    WM_PAGE_EXECUTE           = 0x10,
+    WM_PAGE_EXECUTE_READ      = 0x20,
+    WM_PAGE_EXECUTE_READWRITE = 0x40,
+    WM_PAGE_EXECUTE_WRITECOPY = 0x80,
+
+    WM_PAGE_GUARD             = 0x100,
+    WM_PAGE_NOCACHE           = 0x200,
+    WM_PAGE_WRITECOMBINE      = 0x400,
+
+    /* WDDM */
+    WM_PAGE_GRAPHICS_NOACCESS           = 0x0800,
+    WM_PAGE_GRAPHICS_READONLY           = 0x1000,
+    WM_PAGE_GRAPHICS_READWRITE          = 0x2000,
+    WM_PAGE_GRAPHICS_EXECUTE            = 0x4000,
+    WM_PAGE_GRAPHICS_EXECUTE_READ       = 0x8000,
+    WM_PAGE_GRAPHICS_EXECUTE_READWRITE  = 0x10000,
+    WM_PAGE_GRAPHICS_COHERENT           = 0x20000,
+    WM_PAGE_GRAPHICS_NOCACHE            = 0x40000,
+
+    /* Intel SGX / VBS */
+    WM_PAGE_ENCLAVE_MASK        = 0x10000000,
+    WM_PAGE_ENCLAVE_DECOMMIT    = 0x10000000, /* (WM_PAGE_ENCLAVE_MASK | 0) */
+    WM_PAGE_ENCLAVE_SS_FIRST    = 0x10000001, /* (WM_PAGE_ENCLAVE_MASK | 1) */
+    WM_PAGE_ENCLAVE_SS_REST     = 0x10000002, /* (WM_PAGE_ENCLAVE_MASK | 2) */
+    WM_PAGE_ENCLAVE_UNVALIDATED = 0x20000000,
+    WM_PAGE_ENCLAVE_THREAD_CONTROL = 0x80000000,
+
+    WM_PAGE_TARGETS_NO_UPDATE   = 0x40000000,
+    WM_PAGE_TARGETS_INVALID     = 0x40000000,
+    WM_PAGE_REVERT_TO_FILE_MAP  = 0x80000000
+} WmMemoryProtectFlags;
+
+typedef enum WmMemoryAllocFlags {
+    WM_MEM_COMMIT                 = 0x00001000,
+    WM_MEM_RESERVE                = 0x00002000,
+    WM_MEM_DECOMMIT               = 0x00004000,
+    WM_MEM_RELEASE                = 0x00008000,
+    WM_MEM_FREE                   = 0x00010000,
+
+    WM_MEM_REPLACE_PLACEHOLDER    = 0x00004000,
+    WM_MEM_RESERVE_PLACEHOLDER    = 0x00040000,
+    WM_MEM_RESET                  = 0x00080000,
+    WM_MEM_TOP_DOWN               = 0x00100000,
+    WM_MEM_WRITE_WATCH            = 0x00200000,
+    WM_MEM_PHYSICAL               = 0x00400000,
+    WM_MEM_ROTATE                 = 0x00800000,
+    WM_MEM_DIFFERENT_IMAGE_BASE_OK= 0x00800000,
+    WM_MEM_RESET_UNDO             = 0x01000000,
+    WM_MEM_LARGE_PAGES            = 0x20000000,
+    WM_MEM_4MB_PAGES              = 0x80000000,
+    WM_MEM_64K_PAGES              = 0x20400000, /* (WM_MEMORY_LARGE_PAGES | WM_MEMORY_PHYSICAL) */
+
+    WM_MEM_UNMAP_WITH_TRANSIENT_BOOST = 0x00000001,
+    WM_MEM_COALESCE_PLACEHOLDERS      = 0x00000001,
+    WM_MEM_PRESERVE_PLACEHOLDER       = 0x00000002,
+
+    WM_MEM_EXTENDED_PARAMETER_GRAPHICS            = 0x00000001,
+    WM_MEM_EXTENDED_PARAMETER_NONPAGED            = 0x00000002,
+    WM_MEM_EXTENDED_PARAMETER_ZERO_PAGES_OPTIONAL = 0x00000004,
+    WM_MEM_EXTENDED_PARAMETER_NONPAGED_LARGE      = 0x00000008,
+    WM_MEM_EXTENDED_PARAMETER_NONPAGED_HUGE       = 0x00000010,
+    WM_MEM_EXTENDED_PARAMETER_SOFT_FAULT_PAGES    = 0x00000020,
+    WM_MEM_EXTENDED_PARAMETER_EC_CODE             = 0x00000040,
+    WM_MEM_EXTENDED_PARAMETER_NUMA_NODE_MANDATORY = 0x8000000000000000ULL /* MINLONG64 */
+} WmMemoryAllocFlags;
+
 /* Info structures */
 typedef struct {
     uint32_t pid;
@@ -91,9 +162,9 @@ typedef bool (*WmEnumModuleFn)(const WmModuleInfo *info, void *data);
 
 /* Functions */
 /* Process */
-WM_API WmResult wmProcessOpen(WmProcess *out, const wchar_t *name, WmAccessFlags access);
-WM_API WmResult wmProcessOpenById(WmProcess *out, uint32_t id, WmAccessFlags access);
-WM_API WmResult wmProcessOpenByWindow(WmProcess *out, const wchar_t *windowName, WmAccessFlags access);
+WM_API WmResult wmProcessOpen(WmProcess *out, const wchar_t *name, unsigned long access);
+WM_API WmResult wmProcessOpenById(WmProcess *out, uint32_t id, unsigned long access);
+WM_API WmResult wmProcessOpenByWindow(WmProcess *out, const wchar_t *windowName, unsigned long access);
 WM_API WmResult wmProcessClose(WmProcess process);
 WM_API WmResult wmProcessEnum(WmEnumProcessFn fn, void *data);
 
@@ -106,12 +177,16 @@ WM_API WmResult wmModuleBase(WmProcess process, const wchar_t *name, uintptr_t *
 WM_API WmResult wmMemoryRead(WmProcess process, uintptr_t address, void *out, size_t size);
 WM_API WmResult wmMemoryWrite(WmProcess process, uintptr_t address, void *in, size_t size);
 WM_API WmResult wmMemoryProtect(WmProcess process, uintptr_t address, size_t size, unsigned long protect, unsigned long *oldProtect);
+WM_API WmResult wmMemoryScan(WmProcess process, uintptr_t address, const uint8_t *buffer, size_t size, uintptr_t *outAddr);
+WM_API WmResult wmMemoryScanMask(WmProcess process, uintptr_t address, const char *pattern, size_t size, uintptr_t *outAddr);
+WM_API WmResult wmMemoryWriteBuffer(WmProcess process, uintptr_t address, const uint8_t *buffer, size_t size);
 #define wmRead(process, address, out, type) wmMemoryRead((WmProcess)(process), (uintptr_t)(address), (void*)(out), sizeof(type))
 #define wmWrite(process, address, in, type) wmMemoryWrite((WmProcess)(process), (uintptr_t)(address), (void*)(in), sizeof(type))
 
 /* Errors */
 WM_API const char *wmGetErrorStr(WmResult error);
 WM_API const wchar_t *wmGetErrorStrW(WmResult error);
+WM_API int wmGetWinLastError();
 
 #ifdef __cplusplus
 }

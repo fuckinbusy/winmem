@@ -1,4 +1,5 @@
 #include "winmem.h"
+#include "wm_internal.h"
 
 WM_API const char *wmGetErrorStr(WmResult error)
 {
@@ -32,4 +33,9 @@ WM_API const wchar_t *wmGetErrorStrW(WmResult error)
         case WM_ERROR_PARTIAL_COPY:      return L"Error: Partial copy. Copied less data than expected.";
         default:                         return L"Error: Unkown.";
     }
+}
+
+WM_API int wmGetWinLastError()
+{
+    return GetLastError();
 }

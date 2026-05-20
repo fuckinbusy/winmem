@@ -2,10 +2,11 @@
 #define _WM_INTERNAL_H
 
 #include "winmem.h"
+#include <stdbool.h>
+#include <malloc.h>
 
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
-#include <stdbool.h>
 
 #define WM_MAX_HANDLES 16
 #define WM_STR(s) L##s
@@ -16,7 +17,7 @@
 #include <stdio.h>
 #include <io.h>
 #include <fcntl.h>
-static void wm__InitUnicodeConsole()
+static inline void wm__InitUnicodeConsole()
 {
     static bool active = false;
     if (!active) {
@@ -35,16 +36,16 @@ static void wm__InitUnicodeConsole()
 #endif // WM__DEBUG
 
 #ifdef WM_USE_NATIVE_API
-    #define WM_READ_MEM_IMPL    NtReadVirtualMemory
-    #define WM_WRITE_MEM_IMPL   NtWriteVirtualMemory
-    
-    #define WM_QUERY_MEM_IMPL   VirtualQueryEx
-    #define WM_PROTECT_MEM_IMPL VirtualProtectEx
+    #define WM_IMPL_READ_MEM    NtReadVirtualMemory
+    #define WM_IMPL_WRITE_MEM   NtWriteVirtualMemory
+
+    #define WM_IMPL_QUERY_MEM   VirtualQueryEx
+    #define WM_IMPL_PROTECT_MEM VirtualProtectEx
 #else
-    #define WM_READ_MEM_IMPL    ReadProcessMemory
-    #define WM_WRITE_MEM_IMPL   WriteProcessMemory
-    #define WM_QUERY_MEM_IMPL   VirtualQueryEx
-    #define WM_PROTECT_MEM_IMPL VirtualProtectEx
+    #define WM_IMPL_READ_MEM    ReadProcessMemory
+    #define WM_IMPL_WRITE_MEM   WriteProcessMemory
+    #define WM_IMPL_QUERY_MEM   VirtualQueryEx
+    #define WM_IMPL_PROTECT_MEM VirtualProtectEx
 #endif // WM_USE_NATIVE_API
 
 typedef struct {
@@ -70,6 +71,28 @@ bool wm__isHandleValid(const WmProcess slot)
     if (slot == 0 || slot >= WM_MAX_HANDLES)
         return false;
     return g_Handles[slot].active;
+}
+
+static inline
+bool wm__isMemoryReadable(const unsigned long protect)
+{
+    return
+        (protect & PAGE_READONLY) ||
+        (protect & PAGE_READWRITE) ||
+        (protect & PAGE_EXECUTE_READ) ||
+        (protect & PAGE_EXECUTE_READWRITE);
+}
+
+static inline
+bool wm__isMemoryGuarded(const unsigned long protect)
+{
+    return (protect & PAGE_GUARD);
+}
+
+static inline
+bool wm__isMemoryCommited(const unsigned long state)
+{
+    return (state & MEM_COMMIT);
 }
 
 #endif // _WM_INTERNAL_H

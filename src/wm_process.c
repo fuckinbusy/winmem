@@ -71,7 +71,7 @@ DWORD wm__findPidByName(const wchar_t *name)
     return id;
 }
 
-WM_API WmResult wmProcessOpen(WmProcess *out, const wchar_t *name, WmAccessFlags access)
+WM_API WmResult wmProcessOpen(WmProcess *out, const wchar_t *name, unsigned long access)
 {
     if (!out || !name || wcslen(name) == 0) {
         wmLogE(WM_STR("invalid arg"));
@@ -87,13 +87,13 @@ WM_API WmResult wmProcessOpen(WmProcess *out, const wchar_t *name, WmAccessFlags
     return wm__openProcess(out, access, FALSE, pid);
 }
 
-WM_API WmResult wmProcessOpenById(WmProcess *out, uint32_t id, WmAccessFlags access)
+WM_API WmResult wmProcessOpenById(WmProcess *out, uint32_t id, unsigned long access)
 {
     if (!out || id == 0) return WM_ERROR_INVALID_ARG;
     return wm__openProcess(out, access, FALSE, id);
 }
 
-WM_API WmResult wmProcessOpenByWindow(WmProcess *out, const wchar_t *windowName, WmAccessFlags access)
+WM_API WmResult wmProcessOpenByWindow(WmProcess *out, const wchar_t *windowName, unsigned long access)
 {
     if (!out || !windowName) return WM_ERROR_INVALID_ARG;
 
