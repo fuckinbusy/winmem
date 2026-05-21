@@ -8,6 +8,7 @@
 #include <stddef.h>
 #include <stdbool.h>
 #include <wchar.h>
+#undef _CRT_SECURE_NO_WARNINGS
 
 #ifdef __cplusplus
 extern "C" {
@@ -31,16 +32,20 @@ typedef uint32_t WmThread;
 /* Error codes */
 typedef enum {
     WM_OK = 0,
+    
     WM_ERROR_INVALID_ARG = -1,
     WM_ERROR_TABLE_FULL = -2,
     WM_ERROR_ACCESS_DENIED = -3,
     WM_ERROR_WINAPI_CALL = -4,
+    
     WM_ERROR_NOT_FOUND = -10,
     WM_ERROR_WINDOW_NOT_FOUND = -11,
     WM_ERROR_PROCESS_NOT_FOUND = -12,
     WM_ERROR_MODULE_NOT_FOUND = -13,
     WM_ERROR_THREAD_NOT_FOUND = -14,
-    WM_ERROR_PARTIAL_COPY = -15
+    WM_ERROR_PARTIAL_COPY = -15,
+    
+    WM_ERROR_OUT_OF_MEMORY = -100
 } WmResult;
 
 /* Flags */
@@ -178,7 +183,7 @@ WM_API WmResult wmMemoryRead(WmProcess process, uintptr_t address, void *out, si
 WM_API WmResult wmMemoryWrite(WmProcess process, uintptr_t address, void *in, size_t size);
 WM_API WmResult wmMemoryProtect(WmProcess process, uintptr_t address, size_t size, unsigned long protect, unsigned long *oldProtect);
 WM_API WmResult wmMemoryScan(WmProcess process, uintptr_t address, const uint8_t *buffer, size_t size, uintptr_t *outAddr);
-WM_API WmResult wmMemoryScanMask(WmProcess process, uintptr_t address, const char *pattern, size_t size, uintptr_t *outAddr);
+WM_API WmResult wmMemoryScanMask(WmProcess process, uintptr_t address, const char *pattern, uintptr_t *outAddr);
 WM_API WmResult wmMemoryWriteBuffer(WmProcess process, uintptr_t address, const uint8_t *buffer, size_t size);
 #define wmRead(process, address, out, type) wmMemoryRead((WmProcess)(process), (uintptr_t)(address), (void*)(out), sizeof(type))
 #define wmWrite(process, address, in, type) wmMemoryWrite((WmProcess)(process), (uintptr_t)(address), (void*)(in), sizeof(type))

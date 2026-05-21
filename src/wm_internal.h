@@ -4,6 +4,7 @@
 #include "winmem.h"
 #include <stdbool.h>
 #include <malloc.h>
+#include <string.h>
 
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
@@ -93,6 +94,22 @@ static inline
 bool wm__isMemoryCommited(const unsigned long state)
 {
     return (state & MEM_COMMIT);
+}
+
+static inline
+bool wm__isHexChar(const char c)
+{
+    return (c >= '0' && c <= '9') || (c >= 'A' && c <= 'F') || (c >= 'a' && c <= 'f');
+}
+
+static inline
+uint8_t wm__charToHex(const char c)
+{
+    return
+        (c >= '0' && c <= '9') ? c - '0'      :
+        (c >= 'A' && c <= 'F') ? c - 'A' + 10 :
+        (c >= 'a' && c <= 'f') ? c - 'a' + 10 :
+        0;
 }
 
 #endif // _WM_INTERNAL_H
