@@ -27,9 +27,9 @@ static inline void wm__InitUnicodeConsole()
         active = true;
     }
 }
-#define wmLogI(fmt, ...) do {wm__InitUnicodeConsole(); fwprintf(stderr, WM_STR("[WM:INF] %S:%d ") fmt WM_STR("\n"), __FILE__, __LINE__, ##__VA_ARGS__);} while (0)
-#define wmLogW(fmt, ...) do {wm__InitUnicodeConsole(); fwprintf(stderr, WM_STR("[WM:WRN] %S:%d ") fmt WM_STR("\n"), __FILE__, __LINE__, ##__VA_ARGS__);} while (0)
-#define wmLogE(fmt, ...) do {wm__InitUnicodeConsole(); fwprintf(stderr, WM_STR("[WM:ERR] %S:%d ") fmt WM_STR("\n"), __FILE__, __LINE__, ##__VA_ARGS__);} while (0)
+#define wmLogI(fmt, ...) do {wm__InitUnicodeConsole(); fwprintf(stderr, WM_STR("[WM:INF] %hs:%d ") fmt WM_STR("\n"), __FILE__, __LINE__, ##__VA_ARGS__);} while (0)
+#define wmLogW(fmt, ...) do {wm__InitUnicodeConsole(); fwprintf(stderr, WM_STR("[WM:WRN] %hs:%d ") fmt WM_STR("\n"), __FILE__, __LINE__, ##__VA_ARGS__);} while (0)
+#define wmLogE(fmt, ...) do {wm__InitUnicodeConsole(); fwprintf(stderr, WM_STR("[WM:ERR] %hs:%d ") fmt WM_STR("\n"), __FILE__, __LINE__, ##__VA_ARGS__);} while (0)
 #else
 #define wmLogE(...) ((void)0)
 #define wmLogW(...) ((void)0)
@@ -39,14 +39,17 @@ static inline void wm__InitUnicodeConsole()
 #ifdef WM_USE_NATIVE_API
     #define WM_IMPL_READ_MEM    NtReadVirtualMemory
     #define WM_IMPL_WRITE_MEM   NtWriteVirtualMemory
-
     #define WM_IMPL_QUERY_MEM   VirtualQueryEx
     #define WM_IMPL_PROTECT_MEM VirtualProtectEx
+    #define WM_IMPL_ALLOC_MEM   ((void)0)
+    #define WM_IMPL_FREE_MEM    ((void)0)
 #else
     #define WM_IMPL_READ_MEM    ReadProcessMemory
     #define WM_IMPL_WRITE_MEM   WriteProcessMemory
     #define WM_IMPL_QUERY_MEM   VirtualQueryEx
     #define WM_IMPL_PROTECT_MEM VirtualProtectEx
+    #define WM_IMPL_ALLOC_MEM   VirtualAllocEx
+    #define WM_IMPL_FREE_MEM    VirtualFreeEx
 #endif // WM_USE_NATIVE_API
 
 typedef struct {
@@ -78,20 +81,34 @@ static inline
 bool wm__isMemoryReadable(const unsigned long protect)
 {
     return
-        (protect & PAGE_READONLY) ||
-        (protect & PAGE_READWRITE) ||
-        (protect & PAGE_EXECUTE_READ) ||
-        (protect & PAGE_EXECUTE_READWRITE);
+        !(protect & PAGE_GUARD) && (
+            (protect & PAGE_READONLY) ||
+            (protect & PAGE_READWRITE) ||
+            (protect & PAGE_EXECUTE_READ) ||
+            (protect & PAGE_EXECUTE_READWRITE)
+        );
 }
 
 static inline
-bool wm__isMemoryGuarded(const unsigned long protect)
+bool wm__isMemoryWritable(const unsigned long protect)
 {
-    return (protect & PAGE_GUARD);
+    return
+        !(protect & PAGE_GUARD) && (
+            (protect & PAGE_READWRITE) ||
+            (protect & PAGE_WRITECOPY) ||
+            (protect & PAGE_EXECUTE_READWRITE) ||
+            (protect & PAGE_EXECUTE_WRITECOPY)
+        );
 }
 
 static inline
-bool wm__isMemoryCommited(const unsigned long state)
+bool wm__isMemoryGuarded(const unsigned long protect) // prob useless
+{
+    return (protect & (PAGE_NOACCESS | PAGE_GUARD));
+}
+
+static inline
+bool wm__isMemoryCommited(const unsigned long state) // prob useless
 {
     return (state & MEM_COMMIT);
 }

@@ -32,19 +32,19 @@ typedef uint32_t WmThread;
 /* Error codes */
 typedef enum {
     WM_OK = 0,
-    
+
     WM_ERROR_INVALID_ARG = -1,
     WM_ERROR_TABLE_FULL = -2,
     WM_ERROR_ACCESS_DENIED = -3,
     WM_ERROR_WINAPI_CALL = -4,
-    
+
     WM_ERROR_NOT_FOUND = -10,
     WM_ERROR_WINDOW_NOT_FOUND = -11,
     WM_ERROR_PROCESS_NOT_FOUND = -12,
     WM_ERROR_MODULE_NOT_FOUND = -13,
     WM_ERROR_THREAD_NOT_FOUND = -14,
     WM_ERROR_PARTIAL_COPY = -15,
-    
+
     WM_ERROR_OUT_OF_MEMORY = -100
 } WmResult;
 
@@ -184,9 +184,21 @@ WM_API WmResult wmMemoryWrite(WmProcess process, uintptr_t address, void *in, si
 WM_API WmResult wmMemoryProtect(WmProcess process, uintptr_t address, size_t size, unsigned long protect, unsigned long *oldProtect);
 WM_API WmResult wmMemoryScan(WmProcess process, uintptr_t address, const uint8_t *buffer, size_t size, uintptr_t *outAddr);
 WM_API WmResult wmMemoryScanMask(WmProcess process, uintptr_t address, const char *pattern, uintptr_t *outAddr);
-WM_API WmResult wmMemoryWriteBuffer(WmProcess process, uintptr_t address, const uint8_t *buffer, size_t size);
-#define wmRead(process, address, out, type) wmMemoryRead((WmProcess)(process), (uintptr_t)(address), (void*)(out), sizeof(type))
-#define wmWrite(process, address, in, type) wmMemoryWrite((WmProcess)(process), (uintptr_t)(address), (void*)(in), sizeof(type))
+WM_API WmResult wmMemoryAllocAt(WmProcess process, uintptr_t address, size_t size, unsigned long protect, uintptr_t *outAddr);
+WM_API WmResult wmMemoryFree(WmProcess process, uintptr_t address);
+
+WM_API static inline WmResult wmMemoryWriteBuffer(WmProcess process, uintptr_t address, const uint8_t *buffer, size_t size)
+{
+    return wmMemoryWrite(process, address, (void*)buffer, size);
+}
+
+WM_API static inline WmResult wmMemoryAlloc(WmProcess process, size_t size, unsigned long protect, uintptr_t *outAddr)
+{
+    return wmMemoryAllocAt(process, 0, size, protect, outAddr);
+}
+
+#define wmMemoryReadT(process, address, out, T) wmMemoryRead((WmProcess)(process), (uintptr_t)(address), (void*)(out), sizeof(T))
+#define wmMemoryWriteT(process, address, in, T) wmMemoryWrite((WmProcess)(process), (uintptr_t)(address), (void*)(in), sizeof(T))
 
 /* Errors */
 WM_API const char *wmGetErrorStr(WmResult error);

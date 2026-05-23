@@ -292,3 +292,38 @@ WM_API WmResult wmMemoryScanMask(WmProcess process, uintptr_t address, const cha
 
     return result;
 }
+
+WM_API WmResult wmMemoryAllocAt(WmProcess process, uintptr_t address, size_t size, unsigned long protect, uintptr_t *outAddr)
+{
+    if (!wm__isHandleValid(process) || size == 0) return WM_ERROR_INVALID_ARG;
+
+    WmHandleEntry *entry = NULL;
+    wm__handleGet(process, &entry);
+    *outAddr = 0;
+
+    void *alloc = WM_IMPL_ALLOC_MEM(entry->native, (LPVOID)address, size, MEM_COMMIT | MEM_RESERVE, protect);
+    if (!alloc) {
+        wmLogE(WM_STR("failed to allocate memory at 0x%p. win32 err: %lu"), (void*)address, GetLastError());
+        return WM_ERROR_OUT_OF_MEMORY;
+    }
+
+    *outAddr = (uintptr_t)alloc;
+    wmLogI(WM_STR("memory allocated at 0x%p"), alloc);
+    return WM_OK;
+}
+
+WM_API WmResult wmMemoryFree(WmProcess process, uintptr_t address)
+{
+    if (!wm__isHandleValid(process) || address == 0) return WM_ERROR_INVALID_ARG;
+
+    WmHandleEntry *entry = NULL;
+    wm__handleGet(process, &entry);
+
+    if (!WM_IMPL_FREE_MEM(entry->native, (LPVOID)address, 0, MEM_RELEASE)) {
+        wmLogE(WM_STR("failed to free memory at 0x%p. win32 err: %lu"), (void*)address, GetLastError());
+        return WM_ERROR_ACCESS_DENIED;
+    }
+
+    wmLogI(WM_STR("memory released at 0x%p"), (void*)address);
+    return WM_OK;
+}
