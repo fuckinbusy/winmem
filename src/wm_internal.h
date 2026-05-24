@@ -1,6 +1,7 @@
 #ifndef _WM_INTERNAL_H
 #define _WM_INTERNAL_H
 
+#define _CRT_SECURE_NO_WARNINGS
 #include "winmem.h"
 #include <stdbool.h>
 #include <malloc.h>
@@ -18,15 +19,7 @@
 #include <stdio.h>
 #include <io.h>
 #include <fcntl.h>
-static inline void wm__InitUnicodeConsole()
-{
-    static bool active = false;
-    if (!active) {
-        _setmode(_fileno(stderr), _O_U16TEXT);
-        _setmode(_fileno(stdout), _O_U16TEXT);
-        active = true;
-    }
-}
+void wm__InitUnicodeConsole(void);
 #define wmLogI(fmt, ...) do {wm__InitUnicodeConsole(); fwprintf(stderr, WM_STR("[WM:INF] %hs:%d ") fmt WM_STR("\n"), __FILE__, __LINE__, ##__VA_ARGS__);} while (0)
 #define wmLogW(fmt, ...) do {wm__InitUnicodeConsole(); fwprintf(stderr, WM_STR("[WM:WRN] %hs:%d ") fmt WM_STR("\n"), __FILE__, __LINE__, ##__VA_ARGS__);} while (0)
 #define wmLogE(fmt, ...) do {wm__InitUnicodeConsole(); fwprintf(stderr, WM_STR("[WM:ERR] %hs:%d ") fmt WM_STR("\n"), __FILE__, __LINE__, ##__VA_ARGS__);} while (0)

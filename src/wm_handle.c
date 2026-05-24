@@ -3,6 +3,18 @@
 
 WmHandleEntry g_Handles[WM_MAX_HANDLES] = { 0 };
 
+#ifdef WM__DEBUG
+void wm__InitUnicodeConsole(void)
+{
+    static bool active = false;
+    if (!active) {
+        _setmode(_fileno(stderr), _O_U16TEXT);
+        _setmode(_fileno(stdout), _O_U16TEXT);
+        active = true;
+    }
+}
+#endif
+
 WmResult wm__handleAlloc(uint32_t *slot)
 {
     if (!slot) {
@@ -45,16 +57,16 @@ WmResult wm__handleFree(uint32_t slot)
 WmResult wm__handleGet(uint32_t slot, WmHandleEntry **entry)
 {
     if (!entry || slot == 0 || slot >= WM_MAX_HANDLES) {
-        wmLogE(WM_STR("invalid entry arg or slot is invalid value"));
+        // wmLogE(WM_STR("invalid entry arg or slot is invalid value"));
         return WM_ERROR_INVALID_ARG;
     }
 
     if (!g_Handles[slot].active) {
-        wmLogE(WM_STR("active handle not found (slot %u)"), slot);
+        // wmLogE(WM_STR("active handle not found (slot %u)"), slot);
         return WM_ERROR_NOT_FOUND;
     }
 
     *entry = &g_Handles[slot];
-    wmLogI(WM_STR("entry retrieved (slot %u)"), slot);
+    // wmLogI(WM_STR("entry retrieved (slot %u)"), slot);
     return WM_OK;
 }

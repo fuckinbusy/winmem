@@ -12,7 +12,8 @@
     X(WM_ERROR_MODULE_NOT_FOUND, "Error: Module not found.")     \
     X(WM_ERROR_THREAD_NOT_FOUND, "Error: Thread not found.")     \
     X(WM_ERROR_PARTIAL_COPY, "Error: Partial copy. Copied less data than expected.") \
-    X(WM_ERROR_OUT_OF_MEMORY, "Error: Memory allocation failed.")
+    X(WM_ERROR_OUT_OF_MEMORY, "Error: Memory allocation failed.") \
+    X(WM_ERROR_ARRAY_FULL, "Error: Attempt to write to a full array.")
 
 WM_API const char *wmGetErrorStr(WmResult error)
 {

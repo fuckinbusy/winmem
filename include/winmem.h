@@ -2,13 +2,11 @@
 
 #ifndef _WINMEM_H
 #define _WINMEM_H
-#define _CRT_SECURE_NO_WARNINGS
 #include <stdint.h>
 #include <inttypes.h>
 #include <stddef.h>
 #include <stdbool.h>
 #include <wchar.h>
-#undef _CRT_SECURE_NO_WARNINGS
 
 #ifdef __cplusplus
 extern "C" {
@@ -37,6 +35,7 @@ typedef enum {
     WM_ERROR_TABLE_FULL = -2,
     WM_ERROR_ACCESS_DENIED = -3,
     WM_ERROR_WINAPI_CALL = -4,
+    WM_ERROR_ARRAY_FULL = -5,
 
     WM_ERROR_NOT_FOUND = -10,
     WM_ERROR_WINDOW_NOT_FOUND = -11,
@@ -69,61 +68,61 @@ typedef enum {
 } WmAccessFlags;
 
 typedef enum WmMemoryProtectFlags {
-    WM_PAGE_NOACCESS          = 0x01,
-    WM_PAGE_READONLY          = 0x02,
-    WM_PAGE_READWRITE         = 0x04,
-    WM_PAGE_WRITECOPY         = 0x08,
-    WM_PAGE_EXECUTE           = 0x10,
-    WM_PAGE_EXECUTE_READ      = 0x20,
-    WM_PAGE_EXECUTE_READWRITE = 0x40,
-    WM_PAGE_EXECUTE_WRITECOPY = 0x80,
+    WM_PROT_NOACCESS          = 0x01,
+    WM_PROT_READONLY          = 0x02,
+    WM_PROT_READWRITE         = 0x04,
+    WM_PROT_WRITECOPY         = 0x08,
+    WM_PROT_EXECUTE           = 0x10,
+    WM_PROT_EXECUTE_READ      = 0x20,
+    WM_PROT_EXECUTE_READWRITE = 0x40,
+    WM_PROT_EXECUTE_WRITECOPY = 0x80,
 
-    WM_PAGE_GUARD             = 0x100,
-    WM_PAGE_NOCACHE           = 0x200,
-    WM_PAGE_WRITECOMBINE      = 0x400,
+    WM_PROT_GUARD             = 0x100,
+    WM_PROT_NOCACHE           = 0x200,
+    WM_PROT_WRITECOMBINE      = 0x400,
 
     /* WDDM */
-    WM_PAGE_GRAPHICS_NOACCESS           = 0x0800,
-    WM_PAGE_GRAPHICS_READONLY           = 0x1000,
-    WM_PAGE_GRAPHICS_READWRITE          = 0x2000,
-    WM_PAGE_GRAPHICS_EXECUTE            = 0x4000,
-    WM_PAGE_GRAPHICS_EXECUTE_READ       = 0x8000,
-    WM_PAGE_GRAPHICS_EXECUTE_READWRITE  = 0x10000,
-    WM_PAGE_GRAPHICS_COHERENT           = 0x20000,
-    WM_PAGE_GRAPHICS_NOCACHE            = 0x40000,
+    WM_PROT_GPU_NOACCESS          = 0x0800,
+    WM_PROT_GPU_READONLY          = 0x1000,
+    WM_PROT_GPU_READWRITE         = 0x2000,
+    WM_PROT_GPU_EXECUTE           = 0x4000,
+    WM_PROT_GPU_EXECUTE_READ      = 0x8000,
+    WM_PROT_GPU_EXECUTE_READWRITE = 0x10000,
+    WM_PROT_GPU_COHERENT          = 0x20000,
+    WM_PROT_GPU_NOCACHE           = 0x40000,
 
     /* Intel SGX / VBS */
-    WM_PAGE_ENCLAVE_MASK        = 0x10000000,
-    WM_PAGE_ENCLAVE_DECOMMIT    = 0x10000000, /* (WM_PAGE_ENCLAVE_MASK | 0) */
-    WM_PAGE_ENCLAVE_SS_FIRST    = 0x10000001, /* (WM_PAGE_ENCLAVE_MASK | 1) */
-    WM_PAGE_ENCLAVE_SS_REST     = 0x10000002, /* (WM_PAGE_ENCLAVE_MASK | 2) */
-    WM_PAGE_ENCLAVE_UNVALIDATED = 0x20000000,
-    WM_PAGE_ENCLAVE_THREAD_CONTROL = 0x80000000,
+    WM_PROT_ENCLAVE_MASK           = 0x10000000,
+    WM_PROT_ENCLAVE_DECOMMIT       = 0x10000000, /* (WM_PAGE_ENCLAVE_MASK | 0) */
+    WM_PROT_ENCLAVE_SS_FIRST       = 0x10000001, /* (WM_PAGE_ENCLAVE_MASK | 1) */
+    WM_PROT_ENCLAVE_SS_REST        = 0x10000002, /* (WM_PAGE_ENCLAVE_MASK | 2) */
+    WM_PROT_ENCLAVE_UNVALIDATED    = 0x20000000,
+    WM_PROT_ENCLAVE_THREAD_CONTROL = 0x80000000,
 
-    WM_PAGE_TARGETS_NO_UPDATE   = 0x40000000,
-    WM_PAGE_TARGETS_INVALID     = 0x40000000,
-    WM_PAGE_REVERT_TO_FILE_MAP  = 0x80000000
+    WM_PROT_TARGETS_NO_UPDATE   = 0x40000000,
+    WM_PROT_TARGETS_INVALID     = 0x40000000,
+    WM_PROT_REVERT_TO_FILE_MAP  = 0x80000000
 } WmMemoryProtectFlags;
 
 typedef enum WmMemoryAllocFlags {
-    WM_MEM_COMMIT                 = 0x00001000,
-    WM_MEM_RESERVE                = 0x00002000,
-    WM_MEM_DECOMMIT               = 0x00004000,
-    WM_MEM_RELEASE                = 0x00008000,
-    WM_MEM_FREE                   = 0x00010000,
+    WM_MEM_COMMIT   = 0x00001000,
+    WM_MEM_RESERVE  = 0x00002000,
+    WM_MEM_DECOMMIT = 0x00004000,
+    WM_MEM_RELEASE  = 0x00008000,
+    WM_MEM_FREE     = 0x00010000,
 
-    WM_MEM_REPLACE_PLACEHOLDER    = 0x00004000,
-    WM_MEM_RESERVE_PLACEHOLDER    = 0x00040000,
-    WM_MEM_RESET                  = 0x00080000,
-    WM_MEM_TOP_DOWN               = 0x00100000,
-    WM_MEM_WRITE_WATCH            = 0x00200000,
-    WM_MEM_PHYSICAL               = 0x00400000,
-    WM_MEM_ROTATE                 = 0x00800000,
-    WM_MEM_DIFFERENT_IMAGE_BASE_OK= 0x00800000,
-    WM_MEM_RESET_UNDO             = 0x01000000,
-    WM_MEM_LARGE_PAGES            = 0x20000000,
-    WM_MEM_4MB_PAGES              = 0x80000000,
-    WM_MEM_64K_PAGES              = 0x20400000, /* (WM_MEMORY_LARGE_PAGES | WM_MEMORY_PHYSICAL) */
+    WM_MEM_REPLACE_PLACEHOLDER     = 0x00004000,
+    WM_MEM_RESERVE_PLACEHOLDER     = 0x00040000,
+    WM_MEM_RESET                   = 0x00080000,
+    WM_MEM_TOP_DOWN                = 0x00100000,
+    WM_MEM_WRITE_WATCH             = 0x00200000,
+    WM_MEM_PHYSICAL                = 0x00400000,
+    WM_MEM_ROTATE                  = 0x00800000,
+    WM_MEM_DIFFERENT_IMAGE_BASE_OK = 0x00800000,
+    WM_MEM_RESET_UNDO              = 0x01000000,
+    WM_MEM_LARGE_PAGES             = 0x20000000,
+    WM_MEM_4MB_PAGES               = 0x80000000,
+    WM_MEM_64K_PAGES               = (WM_MEM_LARGE_PAGES | WM_MEM_PHYSICAL),
 
     WM_MEM_UNMAP_WITH_TRANSIENT_BOOST = 0x00000001,
     WM_MEM_COALESCE_PLACEHOLDERS      = 0x00000001,
@@ -181,6 +180,8 @@ WM_API WmResult wmModuleBase(WmProcess process, const wchar_t *name, uintptr_t *
 /* Memory */
 WM_API WmResult wmMemoryRead(WmProcess process, uintptr_t address, void *out, size_t size);
 WM_API WmResult wmMemoryWrite(WmProcess process, uintptr_t address, void *in, size_t size);
+#define wmMemoryReadT(process, address, out, T) wmMemoryRead((WmProcess)(process), (uintptr_t)(address), (void*)(out), sizeof(T))
+#define wmMemoryWriteT(process, address, in, T) wmMemoryWrite((WmProcess)(process), (uintptr_t)(address), (void*)(in), sizeof(T))
 WM_API WmResult wmMemoryProtect(WmProcess process, uintptr_t address, size_t size, unsigned long protect, unsigned long *oldProtect);
 WM_API WmResult wmMemoryScan(WmProcess process, uintptr_t address, const uint8_t *buffer, size_t size, uintptr_t *outAddr);
 WM_API WmResult wmMemoryScanMask(WmProcess process, uintptr_t address, const char *pattern, uintptr_t *outAddr);
@@ -197,8 +198,51 @@ WM_API static inline WmResult wmMemoryAlloc(WmProcess process, size_t size, unsi
     return wmMemoryAllocAt(process, 0, size, protect, outAddr);
 }
 
-#define wmMemoryReadT(process, address, out, T) wmMemoryRead((WmProcess)(process), (uintptr_t)(address), (void*)(out), sizeof(T))
-#define wmMemoryWriteT(process, address, in, T) wmMemoryWrite((WmProcess)(process), (uintptr_t)(address), (void*)(in), sizeof(T))
+/* Shellcode */
+#define WM_SHELLCODE_MAX_STRING_LEN 128
+#define WM_SHELLCODE_MAX_STRINGS    32
+#define WM_SHELLCODE_MAX_FUNCTIONS  32
+
+typedef struct {
+    void *payload;
+    size_t payloadSize;
+
+    char dlls[WM_SHELLCODE_MAX_STRINGS][WM_SHELLCODE_MAX_STRING_LEN];
+    char fns[WM_SHELLCODE_MAX_FUNCTIONS][WM_SHELLCODE_MAX_STRING_LEN];
+    size_t fnsCount;
+
+    char strs[WM_SHELLCODE_MAX_STRINGS][WM_SHELLCODE_MAX_STRING_LEN];
+    size_t strsCount;
+} WmShellcode;
+
+typedef struct {
+    void *functions[WM_SHELLCODE_MAX_FUNCTIONS];
+    char strings[WM_SHELLCODE_MAX_STRINGS][WM_SHELLCODE_MAX_STRING_LEN];
+} WmShellcodeRemoteData;
+
+typedef void (__stdcall *WmShellcodePayloaStartFn)(void*) ;
+typedef void (__stdcall *WmShellcodePayloaEndFn)(void);
+#define WM_SHELLCODE_START_FN(fnName) \
+    __attribute__((noinline)) \
+    __attribute__((optimize("O0"))) \
+    void __stdcall  wmscfns__##fnName(void *data)
+#define WM_SHELLCODE_END_FN(fnName) \
+    __attribute__((noinline)) \
+    __attribute__((optimize("O0"))) \
+    void __stdcall wmscfne__##fnName(void) { volatile int _ = 0; } // should be empty
+#define WM_SHELLCODE_GETS(startFnName) wmscfns__##startFnName
+#define WM_SHELLCODE_GETE(endFnName)   wmscfne__##endFnName
+#define wmShellcodeGetString(remoteDataPtr, index) \
+    ((const char*)((uintptr_t)remoteDataPtr + (WM_SHELLCODE_MAX_FUNCTIONS * sizeof(void*) + (index * WM_SHELLCODE_MAX_STRING_LEN))))
+#define wmShellcodeGetFunction(remoteDataPtr, index) \
+    (((void**)(remoteDataPtr))[index])
+
+WM_API WmResult wmShellcodeCreate(WmShellcode **out);
+WM_API WmResult wmShellcodeSetPayload(WmShellcode *shellcode, WmShellcodePayloaStartFn fnStart, WmShellcodePayloaEndFn fnEnd);
+WM_API WmResult wmShellcodeAddFunction(WmShellcode *shellcode, const char *fnDll, const char *fnName);
+WM_API WmResult wmShellcodeAddString(WmShellcode *shellcode, const char *str);
+WM_API WmResult wmShellcodeExecute(WmProcess process, WmShellcode *shellcode);
+WM_API WmResult wmShellcodeDestroy(WmShellcode *in);
 
 /* Errors */
 WM_API const char *wmGetErrorStr(WmResult error);
