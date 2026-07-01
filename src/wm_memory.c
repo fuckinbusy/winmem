@@ -60,8 +60,8 @@ static bool wm__parseMask(const char *mask, uint8_t *outBytes, uint8_t *outMask,
 
 static WmResult wm__memoryScanImpl(WmProcess process, uintptr_t address, size_t size, WmScanCompareFn fn, void *userData, uintptr_t *outAddr)
 {
-    WmHandleEntry *entry = NULL;
-    wm__handleGet(process, &entry);
+    WmProcessEntry *entry = NULL;
+    wm__processHandleGet(process, &entry);
 
     SYSTEM_INFO sysinfo;
     GetSystemInfo(&sysinfo);
@@ -72,7 +72,6 @@ static WmResult wm__memoryScanImpl(WmProcess process, uintptr_t address, size_t 
     size_t regionBufferSize = sysinfo.dwPageSize;
     uint8_t *regionBuffer = (uint8_t*)malloc(regionBufferSize);
     if (!regionBuffer) {
-        // wmLogE(WM_STR("failed to create a buffer during the scan"));
         return WM_ERROR_OUT_OF_MEMORY;
     }
 
@@ -81,9 +80,8 @@ static WmResult wm__memoryScanImpl(WmProcess process, uintptr_t address, size_t 
 
     wmLogI(WM_STR("memory scan started"));
 
-    // here we go main cycle
     while ((cur < end) && !found) {
-        if (WM_IMPL_QUERY_MEM(entry->native, (LPCVOID)cur, &mbi, sizeof(mbi)) == 0)
+        if (wm__queryMem(entry->native, (LPCVOID)cur, &mbi, sizeof(mbi)) == 0)
             break;
 
         if (wm__isMemoryCommited(mbi.State) && !wm__isMemoryGuarded(mbi.Protect)) {
@@ -97,10 +95,9 @@ static WmResult wm__memoryScanImpl(WmProcess process, uintptr_t address, size_t 
                     regionBuffer = newBuf;
                     regionBufferSize = mbi.RegionSize;
                 }
-                
+
                 size_t bytesRead = 0;
-                if (!WM_IMPL_READ_MEM(entry->native, (LPCVOID)cur, regionBuffer, mbi.RegionSize, &bytesRead)) {
-                    // wmLogE(WM_STR("failed to read the memory region during the scan"));
+                if (!wm__readMem(entry->native, (LPCVOID)cur, regionBuffer, mbi.RegionSize, &bytesRead)) {
                     cur = (uintptr_t)mbi.BaseAddress + mbi.RegionSize;
                     continue;
                 }
@@ -156,13 +153,13 @@ static bool wm__cmpMaskFn(const uint8_t *regionBuffer, size_t offset, void *user
 
 WM_API WmResult wmMemoryRead(WmProcess process, uintptr_t address, void *out, size_t size)
 {
-    if (!wm__isHandleValid(process) || address == 0 || !out || size == 0) return WM_ERROR_INVALID_ARG;
+    if (!wm__isProcessHandleValid(process) || address == 0 || !out || size == 0) return WM_ERROR_INVALID_ARG;
 
-    WmHandleEntry *entry = NULL;
-    wm__handleGet(process, &entry);
+    WmProcessEntry *entry = NULL;
+    wm__processHandleGet(process, &entry);
 
     size_t bytes = 0;
-    if (!WM_IMPL_READ_MEM(entry->native, (LPCVOID)address, (LPVOID)out, size, &bytes)) {
+    if (!wm__readMem(entry->native, (LPCVOID)address, (LPVOID)out, size, &bytes)) {
         wmLogE(WM_STR("failed to read memory: address 0x%p size %zub"), (void*)address, size);
         return WM_ERROR_ACCESS_DENIED;
     }
@@ -179,23 +176,23 @@ WM_API WmResult wmMemoryRead(WmProcess process, uintptr_t address, void *out, si
 
 WM_API WmResult wmMemoryWrite(WmProcess process, uintptr_t address, void *in, size_t size)
 {
-    if (!wm__isHandleValid(process) || address == 0 || !in || size == 0) return WM_ERROR_INVALID_ARG;
+    if (!wm__isProcessHandleValid(process) || address == 0 || !in || size == 0) return WM_ERROR_INVALID_ARG;
 
-    WmHandleEntry *entry = NULL;
-    wm__handleGet(process, &entry);
+    WmProcessEntry *entry = NULL;
+    wm__processHandleGet(process, &entry);
 
     MEMORY_BASIC_INFORMATION mbi;
     DWORD oldProtect;
     bool protectChanged = false;
 
-    if (WM_IMPL_QUERY_MEM(entry->native, (LPCVOID)address, &mbi, sizeof(mbi))) {
+    if (wm__queryMem(entry->native, (LPCVOID)address, &mbi, sizeof(mbi))) {
         if (mbi.State != MEM_COMMIT) {
             wmLogE(WM_STR("memory was not committed yet at 0x%p"), (void*)address);
             return WM_ERROR_ACCESS_DENIED;
         }
 
         if (!(mbi.Protect & (PAGE_READWRITE | PAGE_EXECUTE_WRITECOPY | PAGE_EXECUTE_READWRITE | PAGE_WRITECOPY))) {
-            if (WM_IMPL_PROTECT_MEM(entry->native, (LPVOID)address, size, PAGE_EXECUTE_READWRITE, &oldProtect))
+            if (wm__protectMem(entry->native, (LPVOID)address, size, PAGE_EXECUTE_READWRITE, &oldProtect))
                 protectChanged = true;
         }
     }
@@ -203,7 +200,7 @@ WM_API WmResult wmMemoryWrite(WmProcess process, uintptr_t address, void *in, si
     size_t bytes = 0;
     WmResult status = WM_OK;
 
-    if (!WM_IMPL_WRITE_MEM(entry->native, (LPVOID)address, (LPCVOID)in, size, &bytes)) {
+    if (!wm__writeMem(entry->native, (LPVOID)address, (LPCVOID)in, size, &bytes)) {
         wmLogE(WM_STR("failed to write memory: address 0x%p size %zub"), (void*)address, size);
         status = WM_ERROR_ACCESS_DENIED;
     } else if (bytes < size) {
@@ -212,7 +209,7 @@ WM_API WmResult wmMemoryWrite(WmProcess process, uintptr_t address, void *in, si
     }
 
     if (protectChanged)
-        WM_IMPL_PROTECT_MEM(entry->native, (LPVOID)address, size, oldProtect, &oldProtect);
+        wm__protectMem(entry->native, (LPVOID)address, size, oldProtect, &oldProtect);
 
     wmLogI(WM_STR("write %zu bytes to memory at 0x%p"), bytes, (void*)address);
 
@@ -221,12 +218,12 @@ WM_API WmResult wmMemoryWrite(WmProcess process, uintptr_t address, void *in, si
 
 WM_API WmResult wmMemoryProtect(WmProcess process, uintptr_t address, size_t size, unsigned long protect, unsigned long *oldProtect)
 {
-    if (!wm__isHandleValid(process) || address == 0 || !oldProtect) return WM_ERROR_INVALID_ARG;
+    if (!wm__isProcessHandleValid(process) || address == 0 || !oldProtect) return WM_ERROR_INVALID_ARG;
 
-    WmHandleEntry *entry = NULL;
-    wm__handleGet(process, &entry);
+    WmProcessEntry *entry = NULL;
+    wm__processHandleGet(process, &entry);
 
-    if (!WM_IMPL_PROTECT_MEM(entry->native, (LPVOID)address, size, protect, oldProtect)){
+    if (!wm__protectMem(entry->native, (LPVOID)address, size, protect, oldProtect)) {
         wmLogE(WM_STR("failed to change memory page protection at 0x%p"), (void*)address);
         return WM_ERROR_ACCESS_DENIED;
     }
@@ -238,7 +235,7 @@ WM_API WmResult wmMemoryProtect(WmProcess process, uintptr_t address, size_t siz
 
 WM_API WmResult wmMemoryScan(WmProcess process, uintptr_t address, const uint8_t *buffer, size_t size, uintptr_t *outAddr)
 {
-    if (!wm__isHandleValid(process) || !buffer || size == 0 || !outAddr)
+    if (!wm__isProcessHandleValid(process) || !buffer || size == 0 || !outAddr)
         return WM_ERROR_INVALID_ARG;
 
     wmLogI(WM_STR("memory scan started"));
@@ -260,7 +257,7 @@ WM_API WmResult wmMemoryScan(WmProcess process, uintptr_t address, const uint8_t
 
 WM_API WmResult wmMemoryScanMask(WmProcess process, uintptr_t address, const char *pattern, uintptr_t *outAddr)
 {
-    if (!wm__isHandleValid(process) || !pattern || !outAddr)
+    if (!wm__isProcessHandleValid(process) || !pattern || !outAddr)
         return WM_ERROR_INVALID_ARG;
 
     wmLogI(WM_STR("memory scan started"));
@@ -295,13 +292,13 @@ WM_API WmResult wmMemoryScanMask(WmProcess process, uintptr_t address, const cha
 
 WM_API WmResult wmMemoryAllocAt(WmProcess process, uintptr_t address, size_t size, unsigned long protect, uintptr_t *outAddr)
 {
-    if (!wm__isHandleValid(process) || size == 0) return WM_ERROR_INVALID_ARG;
+    if (!wm__isProcessHandleValid(process) || size == 0) return WM_ERROR_INVALID_ARG;
 
-    WmHandleEntry *entry = NULL;
-    wm__handleGet(process, &entry);
+    WmProcessEntry *entry = NULL;
+    wm__processHandleGet(process, &entry);
     *outAddr = 0;
 
-    void *alloc = WM_IMPL_ALLOC_MEM(entry->native, (LPVOID)address, size, MEM_COMMIT | MEM_RESERVE, protect);
+    void *alloc = wm__allocMem(entry->native, (LPVOID)address, size, MEM_COMMIT | MEM_RESERVE, protect);
     if (!alloc) {
         wmLogE(WM_STR("failed to allocate memory at 0x%p. win32 err: %lu"), (void*)address, GetLastError());
         return WM_ERROR_OUT_OF_MEMORY;
@@ -314,12 +311,12 @@ WM_API WmResult wmMemoryAllocAt(WmProcess process, uintptr_t address, size_t siz
 
 WM_API WmResult wmMemoryFree(WmProcess process, uintptr_t address)
 {
-    if (!wm__isHandleValid(process) || address == 0) return WM_ERROR_INVALID_ARG;
+    if (!wm__isProcessHandleValid(process) || address == 0) return WM_ERROR_INVALID_ARG;
 
-    WmHandleEntry *entry = NULL;
-    wm__handleGet(process, &entry);
+    WmProcessEntry *entry = NULL;
+    wm__processHandleGet(process, &entry);
 
-    if (!WM_IMPL_FREE_MEM(entry->native, (LPVOID)address, 0, MEM_RELEASE)) {
+    if (!wm__freeMem(entry->native, (LPVOID)address)) {
         wmLogE(WM_STR("failed to free memory at 0x%p. win32 err: %lu"), (void*)address, GetLastError());
         return WM_ERROR_ACCESS_DENIED;
     }

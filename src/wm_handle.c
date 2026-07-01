@@ -1,7 +1,55 @@
 #include "wm_internal.h"
-#include "string.h"
-
-WmHandleEntry g_Handles[WM_MAX_HANDLES] = { 0 };
+ 
+WmResult wm__tableAlloc(WmHandleTable *t, uint32_t *slot)
+{
+    if (!t || !slot) return WM_ERROR_INVALID_ARG;
+ 
+    for (uint32_t i = 1; i < (uint32_t)t->capacity; ++i) {
+        bool *active = (bool*)((uint8_t*)t->entries + i * t->slotSize + t->activeOffset);
+        if (!*active) {
+            *active = true;
+            *slot   = i;
+            wmLogI(WM_STR("allocated %hs slot %u"), t->name, i);
+            return WM_OK;
+        }
+    }
+ 
+    wmLogE(WM_STR("%hs handle table is full (%zu slots)"), t->name, t->capacity);
+    return WM_ERROR_TABLE_FULL;
+}
+ 
+WmResult wm__tableFree(WmHandleTable *t, uint32_t slot)
+{
+    if (!t || slot == 0 || slot >= (uint32_t)t->capacity) return WM_ERROR_INVALID_ARG;
+ 
+    void *entry    = (uint8_t*)t->entries + slot * t->slotSize;
+    bool *active   = (bool*)((uint8_t*)entry + t->activeOffset);
+    HANDLE *native = (HANDLE*)((uint8_t*)entry + t->nativeOffset);
+ 
+    if (!*active) {
+        wmLogE(WM_STR("%hs slot %u is not active"), t->name, slot);
+        return WM_ERROR_NOT_FOUND;
+    }
+ 
+    CloseHandle(*native);
+    memset(entry, 0, t->slotSize);
+ 
+    wmLogI(WM_STR("released %hs slot %u"), t->name, slot);
+    return WM_OK;
+}
+ 
+WmResult wm__tableGet(WmHandleTable *t, uint32_t slot, void **out)
+{
+    if (!t || !out || slot == 0 || slot >= (uint32_t)t->capacity) return WM_ERROR_INVALID_ARG;
+ 
+    void *entry  = (uint8_t*)t->entries + slot * t->slotSize;
+    bool *active = (bool*)((uint8_t*)entry + t->activeOffset);
+ 
+    if (!*active) return WM_ERROR_NOT_FOUND;
+ 
+    *out = entry;
+    return WM_OK;
+}
 
 #ifdef WM__DEBUG
 void wm__InitUnicodeConsole(void)
@@ -14,59 +62,3 @@ void wm__InitUnicodeConsole(void)
     }
 }
 #endif
-
-WmResult wm__handleAlloc(uint32_t *slot)
-{
-    if (!slot) {
-        wmLogE(WM_STR("slot is NULL"));
-        return WM_ERROR_INVALID_ARG;
-    }
-
-    for (uint32_t i = 1; i < WM_MAX_HANDLES; ++i) {
-        if (!g_Handles[i].active) {
-            g_Handles[i].active = true;
-            *slot = i;
-            wmLogI(WM_STR("allocated slot %u"), i);
-            return WM_OK;
-        }
-    }
-
-    wmLogE(WM_STR("handle table is full (%d slots)"), WM_MAX_HANDLES);
-    return WM_ERROR_TABLE_FULL;
-}
-
-WmResult wm__handleFree(uint32_t slot)
-{
-    if (slot == 0 || slot >= WM_MAX_HANDLES) {
-        wmLogE(WM_STR("slot is invalid value"));
-        return WM_ERROR_INVALID_ARG;
-    }
-
-    if (!g_Handles[slot].active) {
-        wmLogE(WM_STR("active handle not found (slot %u)"), slot);
-        return WM_ERROR_NOT_FOUND;
-    }
-
-    CloseHandle(g_Handles[slot].native);
-    memset(&g_Handles[slot], 0, sizeof(WmHandleEntry));
-
-    wmLogI(WM_STR("slot handle %u released"), slot);
-    return WM_OK;
-}
-
-WmResult wm__handleGet(uint32_t slot, WmHandleEntry **entry)
-{
-    if (!entry || slot == 0 || slot >= WM_MAX_HANDLES) {
-        // wmLogE(WM_STR("invalid entry arg or slot is invalid value"));
-        return WM_ERROR_INVALID_ARG;
-    }
-
-    if (!g_Handles[slot].active) {
-        // wmLogE(WM_STR("active handle not found (slot %u)"), slot);
-        return WM_ERROR_NOT_FOUND;
-    }
-
-    *entry = &g_Handles[slot];
-    // wmLogI(WM_STR("entry retrieved (slot %u)"), slot);
-    return WM_OK;
-}

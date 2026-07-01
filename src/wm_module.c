@@ -3,8 +3,8 @@
 
 static WmResult wm__traverseModules(WmProcess proc, const wchar_t *name, WmModuleInfo *info, WmEnumModuleFn fn, void *data)
 {
-    WmHandleEntry *entry = NULL;
-    wm__handleGet(proc, &entry);
+    WmProcessEntry *entry = NULL;
+    wm__processHandleGet(proc, &entry);
     if (!entry || entry->active == false) {
         wmLogE(WM_STR("invalid arg"));
         return WM_ERROR_INVALID_ARG;

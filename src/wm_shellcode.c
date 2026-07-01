@@ -2,6 +2,11 @@
 #include "winmem.h"
 #include "wm_internal.h"
 
+typedef struct {
+    void *functions[WM_SHELLCODE_MAX_FUNCTIONS];
+    char strings[WM_SHELLCODE_MAX_STRINGS][WM_SHELLCODE_MAX_STRING_LEN];
+} WmShellcodeRemoteData;
+
 WM_API WmResult wmShellcodeCreate(WmShellcode **out)
 {
     if (!out) return WM_ERROR_INVALID_ARG;
@@ -25,14 +30,33 @@ WM_API WmResult wmShellcodeSetPayload(WmShellcode *shellcode, WmShellcodePayloaS
     return WM_OK;
 }
 
-WM_API WmResult wmShellcodeAddFunction(WmShellcode *shellcode, const char *fnDll, const char *fnName)
+WM_API WmResult wmShellcodeAddImport(WmShellcode *shellcode, const char *dllName, const char *fnName)
 {
-    if (!shellcode || !fnDll || !fnName) return WM_ERROR_INVALID_ARG;
-    if (shellcode->fnsCount >= WM_SHELLCODE_MAX_FUNCTIONS) return WM_ERROR_ARRAY_FULL;
+    if (!shellcode || !dllName || !fnName) return WM_ERROR_INVALID_ARG;
+    if (shellcode->entriesCount >= WM_SHELLCODE_MAX_ENTRIES) return WM_ERROR_ARRAY_FULL;
 
-    strncpy(shellcode->dlls[shellcode->fnsCount], fnDll, WM_SHELLCODE_MAX_STRING_LEN - 1);
-    strncpy(shellcode->fns[shellcode->fnsCount], fnName, WM_SHELLCODE_MAX_STRING_LEN - 1);
-    shellcode->fnsCount++;
+    size_t dllNameLen = strlen(dllName);
+    size_t fnNameLen = strlen(fnName);
+    size_t totalDataSize = dllNameLen + fnNameLen + 2;
+
+    if (shellcode->dataSize + totalDataSize >= WM_SHELLCODE_MAX_DATA_SIZE) return WM_ERROR_ARRAY_FULL;
+
+    void *dllNamePtr = &shellcode->data[shellcode->dataSize];
+    void *fnNamePtr = &shellcode->data[shellcode->dataSize];
+
+    memcpy(dllNamePtr, dllName, dllNameLen);
+    memcpy(fnNamePtr, fnName, fnNameLen);
+    shellcode->dataSize += totalDataSize;
+
+    ((char*)dllNamePtr)[dllNameLen] = '\0';
+    ((char*)fnNamePtr)[fnNameLen] = '\0';
+
+    WmShellcodeEntry *entry = &shellcode->entries[shellcode->entriesCount++];
+    entry->type = WM_SCENTRY_IMPORT;
+    entry->imp.dllNameLen = dllNameLen;
+    entry->imp.funcNameLen = fnNameLen;
+    entry->imp.dllNameOffset = (wm_byte*)dllNamePtr - shellcode->data;
+    entry->imp.funcNameOffset = (wm_byte*)fnNamePtr - shellcode->data;
 
     return WM_OK;
 }
@@ -40,48 +64,78 @@ WM_API WmResult wmShellcodeAddFunction(WmShellcode *shellcode, const char *fnDll
 WM_API WmResult wmShellcodeAddString(WmShellcode *shellcode, const char *str)
 {
     if (!shellcode || !str) return WM_ERROR_INVALID_ARG;
-    if (shellcode->strsCount >= WM_SHELLCODE_MAX_STRINGS) return WM_ERROR_ARRAY_FULL;
+    if (shellcode->entriesCount >= WM_SHELLCODE_MAX_ENTRIES) return WM_ERROR_INVALID_ARG;
 
-    strncpy(shellcode->strs[shellcode->strsCount++], str, WM_SHELLCODE_MAX_STRING_LEN - 1);
+    size_t strLen = strlen(str);
+    if (shellcode->dataSize + strLen + 1 >= WM_SHELLCODE_MAX_DATA_SIZE) return WM_ERROR_ARRAY_FULL;
+
+    void *strPtr = shellcode->data + shellcode->dataSize;
+
+    WmShellcodeEntry *entry = &shellcode->entries[shellcode->entriesCount++];
+    entry->type = WM_SCENTRY_STRING;
+    entry->raw.offset = (wm_byte*)strPtr - shellcode->data;
+    entry->raw.size = strLen + 1;
+
+    memcpy(strPtr, str, strLen);
+    ((wm_byte*)strPtr)[strLen] = '\0';
+    shellcode->dataSize += strLen + 1;
 
     return WM_OK;
 }
 
-static void wm__scResolveFns(WmShellcode *sc, WmShellcodeRemoteData *scrmd)
+WM_API WmResult wmShellcodeAddData(WmShellcode *shellcode, const void *data, size_t dataSize)
 {
-    for (size_t i = 0; i < sc->fnsCount; ++i) {
-        const char *dll = sc->dlls[i];
-        const char *fn = sc->fns[i];
+    if (!shellcode || !data || dataSize == 0) return WM_ERROR_INVALID_ARG;
+    if (shellcode->dataSize + dataSize >= WM_SHELLCODE_MAX_DATA_SIZE
+        || shellcode->entriesCount >= WM_SHELLCODE_MAX_ENTRIES) return WM_ERROR_ARRAY_FULL;
 
-        HMODULE module = GetModuleHandleA(dll);
+    void *dataPtr = &shellcode->data[shellcode->dataSize];
+    memcpy(dataPtr, data, dataSize);
+    shellcode->dataSize += dataSize;
 
-        if (!module) {
-            wmLogW(WM_STR("could not find dll %hs, trying to load..."), dll);
-            module = LoadLibraryA(dll);
-            if (!module) {
-                wmLogW(WM_STR("failed to load library %hs, skipping"), dll);
-                continue;
-            } else {
-                wmLogI(WM_STR("library %hs loaded"), dll);
-            }
-        }
+    WmShellcodeEntry *entry = &shellcode->entries[shellcode->entriesCount++];
+    entry->type = WM_SCENTRY_RAWDATA;
+    entry->raw.offset = 0;
+    entry->raw.size = dataSize;
 
-        void *fnPtr = (void*)GetProcAddress(module, fn);
-        if (!fnPtr) {
-            wmLogW(WM_STR("failed to load function %hs from library %hs, skipping"), fn, dll);
-            continue;
-        }
+    return WM_OK;
+}
 
-        scrmd->functions[i] = fnPtr;
-    }
+static void wm__scResolveFns(WmShellcode *sc, WmShellcodeRemoteData *scrmd) // not used for now
+{
+    // for (size_t i = 0; i < sc->fnsCount; ++i) {
+    //     const char *dll = sc->dlls[i];
+    //     const char *fn = sc->fns[i];
+
+    //     HMODULE module = GetModuleHandleA(dll);
+
+    //     if (!module) {
+    //         wmLogW(WM_STR("could not find dll %hs, trying to load..."), dll);
+    //         module = LoadLibraryA(dll);
+    //         if (!module) {
+    //             wmLogW(WM_STR("failed to load library %hs, skipping"), dll);
+    //             continue;
+    //         } else {
+    //             wmLogI(WM_STR("library %hs loaded"), dll);
+    //         }
+    //     }
+
+    //     void *fnPtr = (void*)GetProcAddress(module, fn);
+    //     if (!fnPtr) {
+    //         wmLogW(WM_STR("failed to load function %hs from library %hs, skipping"), fn, dll);
+    //         continue;
+    //     }
+
+    //     scrmd->functions[i] = fnPtr;
+    // }
 }
 
 WM_API WmResult wmShellcodeExecute(WmProcess process, WmShellcode *shellcode)
 {
-    if (!wm__isHandleValid(process) || !shellcode) return WM_ERROR_INVALID_ARG;
+    if (!wm__isProcessHandleValid(process) || !shellcode) return WM_ERROR_INVALID_ARG;
 
-    WmHandleEntry *entry = NULL;
-    wm__handleGet(process, &entry);
+    WmProcessEntry *entry = NULL;
+    wm__processHandleGet(process, &entry);
 
     WmShellcodeRemoteData remoteData = { 0 };
     wm__scResolveFns(shellcode, &remoteData);

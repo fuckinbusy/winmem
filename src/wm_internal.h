@@ -2,7 +2,6 @@
 #define _WM_INTERNAL_H
 
 #define _CRT_SECURE_NO_WARNINGS
-#include "winmem.h"
 #include <stdbool.h>
 #include <malloc.h>
 #include <string.h>
@@ -29,46 +28,97 @@ void wm__InitUnicodeConsole(void);
 #define wmLogI(...) ((void)0)
 #endif // WM__DEBUG
 
-#ifdef WM_USE_NATIVE_API
-    #define WM_IMPL_READ_MEM    NtReadVirtualMemory
-    #define WM_IMPL_WRITE_MEM   NtWriteVirtualMemory
-    #define WM_IMPL_QUERY_MEM   VirtualQueryEx
-    #define WM_IMPL_PROTECT_MEM VirtualProtectEx
-    #define WM_IMPL_ALLOC_MEM   ((void)0)
-    #define WM_IMPL_FREE_MEM    ((void)0)
-#else
-    #define WM_IMPL_READ_MEM    ReadProcessMemory
-    #define WM_IMPL_WRITE_MEM   WriteProcessMemory
-    #define WM_IMPL_QUERY_MEM   VirtualQueryEx
-    #define WM_IMPL_PROTECT_MEM VirtualProtectEx
-    #define WM_IMPL_ALLOC_MEM   VirtualAllocEx
-    #define WM_IMPL_FREE_MEM    VirtualFreeEx
-#endif // WM_USE_NATIVE_API
+#include "winmem.h"
+
+/* ntapi is separated from internal */
+#include "wm_ntapi.h"
+
+/* Handle tables */
+#define WM__HANDLE_PROCESS 0x0
+#define WM__HANDLE_THREAD  0x1
 
 typedef struct {
-    bool active;
+    const char *name;        // label used in log messages, e.g. "process"
+    void       *entries;     // pointer to the entry array
+    size_t     slotSize;     // sizeof one entry
+    size_t     capacity;     // total number of slots (including slot 0)
+    size_t     activeOffset; // offsetof(EntryType, active)
+    size_t     nativeOffset; // offsetof(EntryType, native)
+} WmHandleTable;
+
+WmResult wm__tableAlloc(WmHandleTable *t, uint32_t *slot);
+WmResult wm__tableFree(WmHandleTable *t, uint32_t  slot);
+WmResult wm__tableGet(WmHandleTable *t, uint32_t  slot, void **out);
+
+// checks if slot is valid or not
+static inline bool wm__tableIsValid(const WmHandleTable *t, const uint32_t slot)
+{
+    if (slot == 0 || slot >= t->capacity) return false;
+    bool *active = (bool*)((uint8_t*)t->entries + slot * t->slotSize + t->activeOffset);
+    return *active;
+}
+
+/* Process handle */
+typedef struct {
     HANDLE native;
     DWORD id;
     DWORD access;
     wchar_t name[WM_MAX_NAME];
-} WmHandleEntry;
+    bool active;
+} WmProcessEntry;
 
-extern WmHandleEntry g_Handles[WM_MAX_HANDLES];
+extern WmProcessEntry g_Processes[WM_MAX_HANDLES];
+extern WmHandleTable g_ProcessesTable;
 
-WmResult wm__handleAlloc(uint32_t *slot);
-WmResult wm__handleFree(uint32_t slot);
-WmResult wm__handleGet(uint32_t slot, WmHandleEntry **out);
+static inline WmResult wm__processHandleAlloc(uint32_t *slot)
+{
+    return wm__tableAlloc(&g_ProcessesTable, slot);
+}
+static inline WmResult wm__processHandleFree(uint32_t slot)
+{
+    return wm__tableFree(&g_ProcessesTable, slot);
+}
+static inline WmResult wm__processHandleGet(uint32_t slot, WmProcessEntry **out)
+{
+    return wm__tableGet(&g_ProcessesTable, slot, (void**)out);
+}
+static inline bool wm__isProcessHandleValid(const WmProcess process)
+{
+    return wm__tableIsValid(&g_ProcessesTable, (const uint32_t)process);
+}
 
+/* Thread handle */
+typedef struct {
+    HANDLE native;
+    DWORD id;
+    DWORD access;
+    DWORD ownerPid;
+    bool active;
+} WmThreadEntry;
+
+extern WmThreadEntry g_Threads[WM_MAX_HANDLES];
+extern WmHandleTable g_ThreadsTable;
+
+static inline WmResult wm__threadHandleAlloc(uint32_t *slot)
+{
+    return wm__tableAlloc(&g_ThreadsTable, slot);
+}
+static inline WmResult wm__threadHandleFree(uint32_t slot)
+{
+    return wm__tableFree(&g_ThreadsTable, slot);
+}
+static inline WmResult wm__threadHandleGet(uint32_t slot, WmThreadEntry **out)
+{
+    return wm__tableGet(&g_ThreadsTable, slot, (void**)out);
+}
+static inline bool wm__isThreadHandleValid(WmThread slot)
+{
+    return wm__tableIsValid(&g_ThreadsTable, slot);
+}
+
+/* Utils and helpers */
 DWORD wm__findPidByName(const wchar_t *name);
 WmResult wm__openProcess(WmProcess *process, DWORD access, BOOL inheritHandle, DWORD id);
-
-static inline
-bool wm__isHandleValid(const WmProcess slot)
-{
-    if (slot == 0 || slot >= WM_MAX_HANDLES)
-        return false;
-    return g_Handles[slot].active;
-}
 
 static inline
 bool wm__isMemoryReadable(const unsigned long protect)
@@ -95,13 +145,13 @@ bool wm__isMemoryWritable(const unsigned long protect)
 }
 
 static inline
-bool wm__isMemoryGuarded(const unsigned long protect) // prob useless
+bool wm__isMemoryGuarded(const unsigned long protect)
 {
     return (protect & (PAGE_NOACCESS | PAGE_GUARD));
 }
 
 static inline
-bool wm__isMemoryCommited(const unsigned long state) // prob useless
+bool wm__isMemoryCommited(const unsigned long state)
 {
     return (state & MEM_COMMIT);
 }

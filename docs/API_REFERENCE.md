@@ -1,4 +1,4 @@
-# winmem — API Reference
+# winmem — API Reference (OUTDATED)
 
 ## Overview
 

@@ -1,9 +1,20 @@
+#include "winmem.h"
 #include "wm_internal.h"
 #include <tlhelp32.h>
 #include <psapi.h>
 
 #define WM_FIND_BY_NAME   0
 #define WM_FIND_BY_WINDOW 1
+
+WmProcessEntry g_Processes[WM_MAX_HANDLES] = { 0 };
+WmHandleTable g_ProcessesTable = {
+    .name         = "process",
+    .entries      = g_Processes,
+    .slotSize     = sizeof(WmProcessEntry),
+    .capacity     = WM_MAX_HANDLES,
+    .activeOffset = offsetof(WmProcessEntry, active),
+    .nativeOffset = offsetof(WmProcessEntry, native),
+};
 
 WmResult wm__openProcess(WmProcess *process, DWORD access, BOOL inheritHandle, DWORD id)
 {
@@ -14,13 +25,13 @@ WmResult wm__openProcess(WmProcess *process, DWORD access, BOOL inheritHandle, D
     }
 
     uint32_t slot = 0;
-    WmResult allocRes = wm__handleAlloc(&slot);
+    WmResult allocRes = wm__processHandleAlloc(&slot);
     if (allocRes != WM_OK) {
         CloseHandle(native);
         return allocRes;
     }
 
-    WmHandleEntry *entry = &g_Handles[slot];
+    WmProcessEntry *entry = &g_Processes[slot];
     entry->active = true;
     entry->native = native;
     entry->id = id;
@@ -118,12 +129,12 @@ WM_API WmResult wmProcessOpenByWindow(WmProcess *out, const wchar_t *windowName,
 
 WM_API WmResult wmProcessClose(WmProcess process)
 {
-    if (!wm__isHandleValid(process)) {
+    if (!wm__isProcessHandleValid(process)) {
         wmLogE(WM_STR("invalid arg"));
         return WM_ERROR_INVALID_ARG;
     }
 
-    WmResult r = wm__handleFree(process);
+    WmResult r = wm__processHandleFree(process);
     if (r != WM_OK)
         wmLogE(WM_STR("failed to close process (slot %u)"), process);
     else

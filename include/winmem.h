@@ -8,19 +8,35 @@
 #include <stdbool.h>
 #include <wchar.h>
 
+// #define VCOLLECTIONS_IMPLEMENTATION
+// #include <vcollections.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 #ifdef WM__BUILD_DLL
     #define WM_API __declspec(dllexport)
-#elif defined(WM_USE_DLL)
+#elif defined(WM__USE_DLL)
     #define WM_API __declspec(dllimport)
 #else
     #define WM_API
 #endif // WM__BUILD_DLL
 
 #define WM_MAX_NAME 260
+
+/* WinMem types */
+typedef uint8_t   wm_byte;
+typedef uint8_t   wm_u8;
+typedef uint16_t  wm_u16;
+typedef uint32_t  wm_u32;
+typedef uint64_t  wm_u64;
+typedef int8_t    wm_i8;
+typedef int16_t   wm_i16;
+typedef int32_t   wm_i32;
+typedef int64_t   wm_i64;
+typedef uintptr_t wm_uptr;
+typedef size_t    wm_usize;
 
 /* Handlers */
 typedef uint32_t WmProcess;
@@ -165,6 +181,10 @@ typedef bool (*WmEnumProcessFn)(const WmProcessInfo *info, void *data);
 typedef bool (*WmEnumModuleFn)(const WmModuleInfo *info, void *data);
 
 /* Functions */
+/* Init */
+// Nt functions are very unstable
+WM_API WmResult wmInit(void);
+
 /* Process */
 WM_API WmResult wmProcessOpen(WmProcess *out, const wchar_t *name, unsigned long access);
 WM_API WmResult wmProcessOpenById(WmProcess *out, uint32_t id, unsigned long access);
@@ -202,34 +222,65 @@ WM_API static inline WmResult wmMemoryAlloc(WmProcess process, size_t size, unsi
 #define WM_SHELLCODE_MAX_STRING_LEN 128
 #define WM_SHELLCODE_MAX_STRINGS    32
 #define WM_SHELLCODE_MAX_FUNCTIONS  32
+#define WM_SHELLCODE_MAX_ENTRIES    128
+#define WM_SHELLCODE_MAX_DATA_SIZE  1024 // 1kb of data buffer
+
+typedef enum {
+    WM_SCENTRY_IMPORT = 0,
+    WM_SCENTRY_STRING,
+    WM_SCENTRY_RAWDATA
+} WmShellcodeEntryType;
+
+typedef struct {
+    uint32_t type; // data type WmShellcodeEntryType
+    union {
+        struct {
+            size_t offset;
+            size_t size;
+        } raw; // raw data
+
+        struct {
+            size_t dllNameOffset;
+            size_t dllNameLen;
+            size_t funcNameOffset;
+            size_t funcNameLen;
+        } imp; // import data
+    };
+} WmShellcodeEntry;
 
 typedef struct {
     void *payload;
     size_t payloadSize;
 
-    char dlls[WM_SHELLCODE_MAX_STRINGS][WM_SHELLCODE_MAX_STRING_LEN];
-    char fns[WM_SHELLCODE_MAX_FUNCTIONS][WM_SHELLCODE_MAX_STRING_LEN];
-    size_t fnsCount;
+    // char dlls[WM_SHELLCODE_MAX_STRINGS][WM_SHELLCODE_MAX_STRING_LEN];
 
-    char strs[WM_SHELLCODE_MAX_STRINGS][WM_SHELLCODE_MAX_STRING_LEN];
-    size_t strsCount;
+    // char fns[WM_SHELLCODE_MAX_FUNCTIONS][WM_SHELLCODE_MAX_STRING_LEN];
+    // size_t fnsCount;
+
+    // char strs[WM_SHELLCODE_MAX_STRINGS][WM_SHELLCODE_MAX_STRING_LEN];
+    // size_t strsCount;
+
+    // new
+    WmShellcodeEntry entries[WM_SHELLCODE_MAX_ENTRIES];
+    size_t entriesCount;
+
+    uint8_t data[WM_SHELLCODE_MAX_DATA_SIZE];
+    size_t dataSize;
 } WmShellcode;
 
-typedef struct {
-    void *functions[WM_SHELLCODE_MAX_FUNCTIONS];
-    char strings[WM_SHELLCODE_MAX_STRINGS][WM_SHELLCODE_MAX_STRING_LEN];
-} WmShellcodeRemoteData;
-
-typedef void (__stdcall *WmShellcodePayloaStartFn)(void*) ;
+typedef void (__stdcall *WmShellcodePayloaStartFn)(void*);
 typedef void (__stdcall *WmShellcodePayloaEndFn)(void);
+
 #define WM_SHELLCODE_START_FN(fnName) \
     __attribute__((noinline)) \
     __attribute__((optimize("O0"))) \
     void __stdcall  wmscfns__##fnName(void *data)
+
 #define WM_SHELLCODE_END_FN(fnName) \
     __attribute__((noinline)) \
     __attribute__((optimize("O0"))) \
     void __stdcall wmscfne__##fnName(void) { volatile int _ = 0; } // should be empty
+
 #define WM_SHELLCODE_GETS(startFnName) wmscfns__##startFnName
 #define WM_SHELLCODE_GETE(endFnName)   wmscfne__##endFnName
 #define wmShellcodeGetString(remoteDataPtr, index) \
@@ -239,8 +290,9 @@ typedef void (__stdcall *WmShellcodePayloaEndFn)(void);
 
 WM_API WmResult wmShellcodeCreate(WmShellcode **out);
 WM_API WmResult wmShellcodeSetPayload(WmShellcode *shellcode, WmShellcodePayloaStartFn fnStart, WmShellcodePayloaEndFn fnEnd);
-WM_API WmResult wmShellcodeAddFunction(WmShellcode *shellcode, const char *fnDll, const char *fnName);
-WM_API WmResult wmShellcodeAddString(WmShellcode *shellcode, const char *str);
+WM_API WmResult wmShellcodeAddImport(WmShellcode *shellcode, const char *dllName, const char *fnName);
+WM_API WmResult wmShellcodeAdd(WmShellcode *shellcode, const void *src, size_t size);
+
 WM_API WmResult wmShellcodeExecute(WmProcess process, WmShellcode *shellcode);
 WM_API WmResult wmShellcodeDestroy(WmShellcode *in);
 
