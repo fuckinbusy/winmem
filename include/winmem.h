@@ -208,12 +208,14 @@ WM_API WmResult wmMemoryScanMask(WmProcess process, uintptr_t address, const cha
 WM_API WmResult wmMemoryAllocAt(WmProcess process, uintptr_t address, size_t size, unsigned long protect, uintptr_t *outAddr);
 WM_API WmResult wmMemoryFree(WmProcess process, uintptr_t address);
 
-WM_API static inline WmResult wmMemoryWriteBuffer(WmProcess process, uintptr_t address, const uint8_t *buffer, size_t size)
+WM_API static inline
+WmResult wmMemoryWriteBuffer(WmProcess process, uintptr_t address, const uint8_t *buffer, size_t size)
 {
     return wmMemoryWrite(process, address, (void*)buffer, size);
 }
 
-WM_API static inline WmResult wmMemoryAlloc(WmProcess process, size_t size, unsigned long protect, uintptr_t *outAddr)
+WM_API static inline
+WmResult wmMemoryAlloc(WmProcess process, size_t size, unsigned long protect, uintptr_t *outAddr)
 {
     return wmMemoryAllocAt(process, 0, size, protect, outAddr);
 }
@@ -225,46 +227,37 @@ WM_API static inline WmResult wmMemoryAlloc(WmProcess process, size_t size, unsi
 #define WM_SHELLCODE_MAX_ENTRIES    128
 #define WM_SHELLCODE_MAX_DATA_SIZE  1024 // 1kb of data buffer
 
-typedef enum {
-    WM_SCENTRY_IMPORT = 0,
-    WM_SCENTRY_STRING,
-    WM_SCENTRY_RAWDATA
-} WmShellcodeEntryType;
+#define WM_SHELLCODE_ENTRY_IMPORT  0
+#define WM_SHELLCODE_ENTRY_STRING  1
+#define WM_SHELLCODE_ENTRY_RAWDATA 2
 
 typedef struct {
     uint32_t type; // data type WmShellcodeEntryType
-    union {
-        struct {
-            size_t offset;
-            size_t size;
-        } raw; // raw data
+    size_t offset;
+    size_t size;
+    // union {
+    //     struct {
+    //         size_t offset;
+    //         size_t size;
+    //     } raw; // raw data
 
-        struct {
-            size_t dllNameOffset;
-            size_t dllNameLen;
-            size_t funcNameOffset;
-            size_t funcNameLen;
-        } imp; // import data
-    };
+        // struct {
+        //     size_t dllNameOffset;
+        //     size_t dllNameLen;
+        //     size_t funcNameOffset;
+        //     size_t funcNameLen;
+        //     size_t funcOffset;
+        // } imp; // import data
+    // };
 } WmShellcodeEntry;
 
-typedef struct {
-    void *payload;
+typedef struct WmShellcodeContext {
+    void   *payload;
     size_t payloadSize;
 
-    // char dlls[WM_SHELLCODE_MAX_STRINGS][WM_SHELLCODE_MAX_STRING_LEN];
-
-    // char fns[WM_SHELLCODE_MAX_FUNCTIONS][WM_SHELLCODE_MAX_STRING_LEN];
-    // size_t fnsCount;
-
-    // char strs[WM_SHELLCODE_MAX_STRINGS][WM_SHELLCODE_MAX_STRING_LEN];
-    // size_t strsCount;
-
-    // new
     WmShellcodeEntry entries[WM_SHELLCODE_MAX_ENTRIES];
+    wm_byte data[WM_SHELLCODE_MAX_DATA_SIZE];
     size_t entriesCount;
-
-    uint8_t data[WM_SHELLCODE_MAX_DATA_SIZE];
     size_t dataSize;
 } WmShellcode;
 
@@ -276,22 +269,31 @@ typedef void (__stdcall *WmShellcodePayloaEndFn)(void);
     __attribute__((optimize("O0"))) \
     void __stdcall  wmscfns__##fnName(void *data)
 
+// using volatile variable here
+// to make sure compiler won't remove this empty function
 #define WM_SHELLCODE_END_FN(fnName) \
     __attribute__((noinline)) \
     __attribute__((optimize("O0"))) \
-    void __stdcall wmscfne__##fnName(void) { volatile int _ = 0; } // should be empty
+    void __stdcall wmscfne__##fnName(void) { volatile int _ = 0; }
 
 #define WM_SHELLCODE_GETS(startFnName) wmscfns__##startFnName
 #define WM_SHELLCODE_GETE(endFnName)   wmscfne__##endFnName
-#define wmShellcodeGetString(remoteDataPtr, index) \
-    ((const char*)((uintptr_t)remoteDataPtr + (WM_SHELLCODE_MAX_FUNCTIONS * sizeof(void*) + (index * WM_SHELLCODE_MAX_STRING_LEN))))
-#define wmShellcodeGetFunction(remoteDataPtr, index) \
-    (((void**)(remoteDataPtr))[index])
+
+#define WM_SC_ENTRY(ctx, i) \
+    ((WmShellcodeEntry*)((wm_uptr)(ctx) + (i) * sizeof(WmShellcodeEntry)))
+
+#define WM_SC_RAW_BASE(ctx) \
+    ((wm_byte*)((wm_uptr)(ctx) + sizeof(WmShellcodeEntry) * WM_SHELLCODE_MAX_ENTRIES))
+
+#define WM_SC_DATA(ctx, i) \
+    ((void*)(WM_SC_RAW_BASE(ctx) + WM_SC_ENTRY(ctx, i)->offset))
 
 WM_API WmResult wmShellcodeCreate(WmShellcode **out);
 WM_API WmResult wmShellcodeSetPayload(WmShellcode *shellcode, WmShellcodePayloaStartFn fnStart, WmShellcodePayloaEndFn fnEnd);
+
 WM_API WmResult wmShellcodeAddImport(WmShellcode *shellcode, const char *dllName, const char *fnName);
-WM_API WmResult wmShellcodeAdd(WmShellcode *shellcode, const void *src, size_t size);
+WM_API WmResult wmShellcodeAddString(WmShellcode *shellcode, const char *str);
+WM_API WmResult wmShellcodeAddData(WmShellcode *shellcode, const void *data, size_t dataSize);
 
 WM_API WmResult wmShellcodeExecute(WmProcess process, WmShellcode *shellcode);
 WM_API WmResult wmShellcodeDestroy(WmShellcode *in);
