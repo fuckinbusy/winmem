@@ -165,4 +165,15 @@ wm_dword wm__hashROR13(const char *str)
     return hash;
 }
 
+static inline
+wm_dword wm__hashROR13W(wchar_t *str)
+{
+    wm_dword hash = 0;
+    while (*str) {
+        hash = (hash >> 13) | (hash << 19);
+        hash += (wchar_t)*str++;
+    }
+    return hash;
+}
+
 #endif // _WM_INTERNAL_H
