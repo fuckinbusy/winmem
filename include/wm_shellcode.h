@@ -8,28 +8,13 @@
 #define WM_SHELLCODE_MAX_ENTRIES    128
 #define WM_SHELLCODE_MAX_DATA_SIZE  1024 // 1kb of data buffer
 
-#define WM_SHELLCODE_ENTRY_IMPORT  0
-#define WM_SHELLCODE_ENTRY_STRING  1
-#define WM_SHELLCODE_ENTRY_RAWDATA 2
+// #define WM_SHELLCODE_ENTRY_IMPORT  0
+// #define WM_SHELLCODE_ENTRY_STRING  1
+// #define WM_SHELLCODE_ENTRY_RAWDATA 2
 
 typedef struct {
-    uint32_t type; // data type WmShellcodeEntryType
     size_t offset;
     size_t size;
-    // union {
-    //     struct {
-    //         size_t offset;
-    //         size_t size;
-    //     } raw; // raw data
-
-        // struct {
-        //     size_t dllNameOffset;
-        //     size_t dllNameLen;
-        //     size_t funcNameOffset;
-        //     size_t funcNameLen;
-        //     size_t funcOffset;
-        // } imp; // import data
-    // };
 } WmShellcodeEntry;
 
 typedef struct WmShellcodeContext {
