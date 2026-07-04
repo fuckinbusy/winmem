@@ -1,5 +1,7 @@
-#include "winmem.h"
-#include "wm_internal.h"
+#include "internal/wm_internal.h"
+#include "wm_process.h"
+#include "wm_log.h"
+
 #include <tlhelp32.h>
 #include <psapi.h>
 

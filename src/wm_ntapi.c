@@ -1,12 +1,13 @@
-#include "wm_internal.h"
+#include "internal/wm_ntapi.h"
+#include "wm_log.h"
 
 #ifdef WM_USE_NATIVE_API
-NtReadVirtualMemoryFn     NtReadVirtualMemory     = NULL;
-NtWriteVirtualMemoryFn    NtWriteVirtualMemory    = NULL;
-NtAllocateVirtualMemoryFn NtAllocateVirtualMemory = NULL;
-NtFreeVirtualMemoryFn     NtFreeVirtualMemory     = NULL;
-NtQueryVirtualMemoryFn    NtQueryVirtualMemory    = NULL;
-NtProtectVirtualMemoryFn  NtProtectVirtualMemory  = NULL;
+NtReadVirtualMemoryFn     g_NtReadVirtualMemory     = NULL;
+NtWriteVirtualMemoryFn    g_NtWriteVirtualMemory    = NULL;
+NtAllocateVirtualMemoryFn g_NtAllocateVirtualMemory = NULL;
+NtFreeVirtualMemoryFn     g_NtFreeVirtualMemory     = NULL;
+NtQueryVirtualMemoryFn    g_NtQueryVirtualMemory    = NULL;
+NtProtectVirtualMemoryFn  g_NtProtectVirtualMemory  = NULL;
 #endif // WM_USE_NATIVE_API
 
 /* ---------------------------------------------------------------------------
@@ -24,7 +25,7 @@ NtProtectVirtualMemoryFn  NtProtectVirtualMemory  = NULL;
  * never happen on any supported Windows version; treat it as a fatal error.
  * --------------------------------------------------------------------------- */
 
-WM_API WmResult wmInit(void)
+WM_API WmResult wmNtInit(void)
 {
 #ifdef WM_USE_NATIVE_API
     HMODULE ntdll = GetModuleHandleA("ntdll.dll");
@@ -33,16 +34,16 @@ WM_API WmResult wmInit(void)
         return WM_ERROR_WINAPI_CALL;
     }
 
-    NtReadVirtualMemory     = (NtReadVirtualMemoryFn)    GetProcAddress(ntdll, "NtReadVirtualMemory");
-    NtWriteVirtualMemory    = (NtWriteVirtualMemoryFn)   GetProcAddress(ntdll, "NtWriteVirtualMemory");
-    NtAllocateVirtualMemory = (NtAllocateVirtualMemoryFn)GetProcAddress(ntdll, "NtAllocateVirtualMemory");
-    NtFreeVirtualMemory     = (NtFreeVirtualMemoryFn)    GetProcAddress(ntdll, "NtFreeVirtualMemory");
-    NtQueryVirtualMemory    = (NtQueryVirtualMemoryFn)   GetProcAddress(ntdll, "NtQueryVirtualMemory");
-    NtProtectVirtualMemory  = (NtProtectVirtualMemoryFn) GetProcAddress(ntdll, "NtProtectVirtualMemory");
+    g_NtReadVirtualMemory     = (NtReadVirtualMemoryFn)    GetProcAddress(ntdll, "NtReadVirtualMemory");
+    g_NtWriteVirtualMemory    = (NtWriteVirtualMemoryFn)   GetProcAddress(ntdll, "NtWriteVirtualMemory");
+    g_NtAllocateVirtualMemory = (NtAllocateVirtualMemoryFn)GetProcAddress(ntdll, "NtAllocateVirtualMemory");
+    g_NtFreeVirtualMemory     = (NtFreeVirtualMemoryFn)    GetProcAddress(ntdll, "NtFreeVirtualMemory");
+    g_NtQueryVirtualMemory    = (NtQueryVirtualMemoryFn)   GetProcAddress(ntdll, "NtQueryVirtualMemory");
+    g_NtProtectVirtualMemory  = (NtProtectVirtualMemoryFn) GetProcAddress(ntdll, "NtProtectVirtualMemory");
 
-    if (!NtReadVirtualMemory     || !NtWriteVirtualMemory   ||
-        !NtAllocateVirtualMemory || !NtFreeVirtualMemory    ||
-        !NtQueryVirtualMemory    || !NtProtectVirtualMemory) {
+    if (!g_NtReadVirtualMemory     || !g_NtWriteVirtualMemory   ||
+        !g_NtAllocateVirtualMemory || !g_NtFreeVirtualMemory    ||
+        !g_NtQueryVirtualMemory    || !g_NtProtectVirtualMemory) {
         wmLogE(WM_STR("failed to resolve one or more NT functions from ntdll.dll"));
         return WM_ERROR_WINAPI_CALL;
     }

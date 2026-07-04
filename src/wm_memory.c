@@ -1,5 +1,6 @@
-#include "winmem.h"
-#include "wm_internal.h"
+#include "internal/wm_ntapi.h"
+#include "wm_memory.h"
+#include "wm_log.h"
 
 typedef struct {
     const uint8_t *bytes;

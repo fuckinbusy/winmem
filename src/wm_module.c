@@ -1,4 +1,6 @@
-#include "wm_internal.h"
+#include "internal/wm_internal.h"
+#include "wm_log.h"
+#include "wm_module.h"
 #include <tlhelp32.h>
 
 static WmResult wm__traverseModules(WmProcess proc, const wchar_t *name, WmModuleInfo *info, WmEnumModuleFn fn, void *data)

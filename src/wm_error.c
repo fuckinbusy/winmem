@@ -1,5 +1,5 @@
-#include "winmem.h"
-#include "wm_internal.h"
+#include "internal/wm_internal.h"
+#include "wm_error.h"
 
 #define WM_ERROR_LIST(X)                                         \
     X(WM_OK, "No errors.")                                       \

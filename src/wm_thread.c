@@ -1,4 +1,5 @@
-#include "wm_internal.h"
+#include "internal/wm_internal.h"
+#include "wm_thread.h"
 
 WmThreadEntry g_Threads[WM_MAX_HANDLES] = { 0 };
 WmHandleTable g_ThreadsTable = {

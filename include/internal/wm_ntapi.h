@@ -1,6 +1,5 @@
 #ifndef _WM_NTAPI_H
 #define _WM_NTAPI_H
-
 // NT API is very unstable and requires extensive testing.
 // But, on the other hand, it's very stealthy.
 
@@ -18,12 +17,7 @@
  * Never include this header directly from consuming code.
  * --------------------------------------------------------------------------- */
 
-#ifndef WIN32_LEAN_AND_MEAN
-#define WIN32_LEAN_AND_MEAN
-#endif
-#include <windows.h>
-#include <stddef.h>
-#include <stdbool.h>
+#include "wm_internal.h"
 
 typedef LONG NTSTATUS;
 
@@ -47,19 +41,21 @@ typedef NTSTATUS (NTAPI *NtProtectVirtualMemoryFn) (HANDLE, PVOID*, PSIZE_T,   U
 
 /* Global funtion pointers */
 #ifdef WM_USE_NATIVE_API
-extern NtReadVirtualMemoryFn     NtReadVirtualMemory;
-extern NtWriteVirtualMemoryFn    NtWriteVirtualMemory;
-extern NtAllocateVirtualMemoryFn NtAllocateVirtualMemory;
-extern NtFreeVirtualMemoryFn     NtFreeVirtualMemory;
-extern NtQueryVirtualMemoryFn    NtQueryVirtualMemory;
-extern NtProtectVirtualMemoryFn  NtProtectVirtualMemory;
+extern NtReadVirtualMemoryFn     g_NtReadVirtualMemory;
+extern NtWriteVirtualMemoryFn    g_NtWriteVirtualMemory;
+extern NtAllocateVirtualMemoryFn g_NtAllocateVirtualMemory;
+extern NtFreeVirtualMemoryFn     g_NtFreeVirtualMemory;
+extern NtQueryVirtualMemoryFn    g_NtQueryVirtualMemory;
+extern NtProtectVirtualMemoryFn  g_NtProtectVirtualMemory;
 #endif // WM_USE_NATIVE_API
+
+WM_API WmResult wmNtInit(void);
 
 /* Wrappers */
 static inline bool wm__readMem(HANDLE h, LPCVOID addr, LPVOID buf, SIZE_T size, SIZE_T *read)
 {
 #ifdef WM_USE_NATIVE_API
-    return NT_SUCCESS(NtReadVirtualMemory(h, (PVOID)addr, buf, size, read));
+    return NT_SUCCESS(g_NtReadVirtualMemory(h, (PVOID)addr, buf, size, read));
 #else
     return (bool)ReadProcessMemory(h, addr, buf, size, read);
 #endif
@@ -68,7 +64,7 @@ static inline bool wm__readMem(HANDLE h, LPCVOID addr, LPVOID buf, SIZE_T size, 
 static inline bool wm__writeMem(HANDLE h, LPVOID addr, LPCVOID buf, SIZE_T size, SIZE_T *written)
 {
 #ifdef WM_USE_NATIVE_API
-    return NT_SUCCESS(NtWriteVirtualMemory(h, addr, (PVOID)buf, size, written));
+    return NT_SUCCESS(g_NtWriteVirtualMemory(h, addr, (PVOID)buf, size, written));
 #else
     return (bool)WriteProcessMemory(h, addr, buf, size, written);
 #endif
@@ -78,7 +74,7 @@ static inline SIZE_T wm__queryMem(HANDLE h, LPCVOID addr, PMEMORY_BASIC_INFORMAT
 {
 #ifdef WM_USE_NATIVE_API
     SIZE_T returnLength = 0;
-    NTSTATUS s = NtQueryVirtualMemory(h, (PVOID)addr, WmMemoryBasicInformation,
+    NTSTATUS s = g_NtQueryVirtualMemory(h, (PVOID)addr, WmMemoryBasicInformation,
                                       mbi, size, &returnLength);
     return NT_SUCCESS(s) ? returnLength : 0;
 #else
@@ -91,7 +87,7 @@ static inline bool wm__protectMem(HANDLE h, LPVOID addr, SIZE_T size, DWORD prot
 #ifdef WM_USE_NATIVE_API
     PVOID  baseAddr   = addr;
     SIZE_T regionSize = size;
-    return NT_SUCCESS(NtProtectVirtualMemory(h, &baseAddr, &regionSize, protect, old));
+    return NT_SUCCESS(g_NtProtectVirtualMemory(h, &baseAddr, &regionSize, protect, old));
 #else
     return (bool)VirtualProtectEx(h, addr, size, protect, old);
 #endif
@@ -101,7 +97,7 @@ static inline void* wm__allocMem(HANDLE h, LPVOID addr, SIZE_T size, DWORD type,
 {
 #ifdef WM_USE_NATIVE_API
     SIZE_T regionSize = size;
-    NTSTATUS s = NtAllocateVirtualMemory(h, &addr, 0, &regionSize, type, protect);
+    NTSTATUS s = g_NtAllocateVirtualMemory(h, &addr, 0, &regionSize, type, protect);
     return NT_SUCCESS(s) ? addr : NULL;
 #else
     return VirtualAllocEx(h, addr, size, type, protect);
@@ -112,7 +108,7 @@ static inline bool wm__freeMem(HANDLE h, LPVOID addr)
 {
 #ifdef WM_USE_NATIVE_API
     SIZE_T regionSize = 0;
-    return NT_SUCCESS(NtFreeVirtualMemory(h, &addr, &regionSize, MEM_RELEASE));
+    return NT_SUCCESS(g_NtFreeVirtualMemory(h, &addr, &regionSize, MEM_RELEASE));
 #else
     return (bool)VirtualFreeEx(h, addr, 0, MEM_RELEASE);
 #endif

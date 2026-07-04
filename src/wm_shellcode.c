@@ -1,6 +1,8 @@
 /* welcome to low level hell */
-#include "winmem.h"
-#include "wm_internal.h"
+#include "internal/wm_internal.h"
+#include "wm_shellcode.h"
+#include "wm_memory.h"
+#include "wm_log.h"
 
 WM_API WmResult wmShellcodeCreate(WmShellcode **out)
 {
@@ -149,7 +151,7 @@ WM_API WmResult wmShellcodeExecute(WmProcess process, WmShellcode *shellcode)
         wmMemoryFree(process, shellcodeDst);
         return result;
     }
-    
+
     result = wmMemoryWriteBuffer(process, remoteDataPtr, (const uint8_t*)shellcode->entries, remoteDataSize);
     if (result != WM_OK) {
         wmLogE(WM_STR("failed to write remote data"));

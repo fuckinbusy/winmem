@@ -12,26 +12,8 @@
 #define WM_MAX_HANDLES 16
 #define WM_STR(s) L##s
 
-/* if debug macro is defined, default printf or any other function
- * with char* type of parameter cannot be used */
-#ifdef WM__DEBUG
-#include <stdio.h>
-#include <io.h>
-#include <fcntl.h>
-void wm__InitUnicodeConsole(void);
-#define wmLogI(fmt, ...) do {wm__InitUnicodeConsole(); fwprintf(stderr, WM_STR("[WM:INF] %hs:%d ") fmt WM_STR("\n"), __FILE__, __LINE__, ##__VA_ARGS__);} while (0)
-#define wmLogW(fmt, ...) do {wm__InitUnicodeConsole(); fwprintf(stderr, WM_STR("[WM:WRN] %hs:%d ") fmt WM_STR("\n"), __FILE__, __LINE__, ##__VA_ARGS__);} while (0)
-#define wmLogE(fmt, ...) do {wm__InitUnicodeConsole(); fwprintf(stderr, WM_STR("[WM:ERR] %hs:%d ") fmt WM_STR("\n"), __FILE__, __LINE__, ##__VA_ARGS__);} while (0)
-#else
-#define wmLogE(...) ((void)0)
-#define wmLogW(...) ((void)0)
-#define wmLogI(...) ((void)0)
-#endif // WM__DEBUG
-
-#include "winmem.h"
-
-/* ntapi is separated from internal */
-#include "wm_ntapi.h"
+#include "../wm_types.h"
+// #include "wm_ntapi.h"
 
 /* Handle tables */
 #define WM__HANDLE_PROCESS 0x0
@@ -170,6 +152,17 @@ uint8_t wm__charToHex(const char c)
         (c >= 'A' && c <= 'F') ? c - 'A' + 10 :
         (c >= 'a' && c <= 'f') ? c - 'a' + 10 :
         0;
+}
+
+static inline
+wm_dword wm__hashROR13(const char *str)
+{
+    wm_dword hash = 0;
+    while (*str) {
+        hash = (hash >> 13) | (hash << 19);
+        hash += (wm_byte)*str++;
+    }
+    return hash;
 }
 
 #endif // _WM_INTERNAL_H
