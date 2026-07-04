@@ -4,6 +4,71 @@
 #include "wm_memory.h"
 #include "wm_log.h"
 
+// #define _WINMEM_TEST
+#ifdef _WINMEM_TEST
+#include <winternl.h>
+#include <winnt.h>
+
+typedef struct {
+    wm_u32 dllHashes[WM_SHELLCODE_MAX_FUNCTIONS];
+    wm_u32 fnHashes[WM_SHELLCODE_MAX_FUNCTIONS];
+    void *resolvedFns[WM_SHELLCODE_MAX_FUNCTIONS];
+    size_t dllCount;
+    size_t fnCount;
+} WmPEBRemoteData;
+
+typedef struct _MY_LDR_DATA_TABLE_ENTRY {
+    LIST_ENTRY InLoadOrderLinks;
+    LIST_ENTRY InMemoryOrderLinks;
+    LIST_ENTRY InInitializationOrderLinks;
+    PVOID      DllBase;
+    PVOID      EntryPoint;
+    ULONG      SizeOfImage;
+    UNICODE_STRING FullDllName;
+    UNICODE_STRING BaseDllName;
+} MY_LDR_DATA_TABLE_ENTRY, *PMY_LDR_DATA_TABLE_ENTRY;
+
+static WM_SC_STARTFN(pebTraversal)
+{
+    WmPEBRemoteData *remoteData = (WmPEBRemoteData*)data;
+    PPEB peb;
+    #ifdef _WIN64
+    peb = (PPEB)__readgsqword(0x60);
+    #else
+    peb = (PPEB)__readfsqword(0x30);
+    #endif
+
+    PLIST_ENTRY head = &peb->Ldr->InMemoryOrderModuleList;
+    PLIST_ENTRY cur = head->Flink;
+
+    for (int i = 0; i < remoteData->dllCount; ++i) {
+        PVOID dllBase = NULL;
+        while (cur != head) {
+            PMY_LDR_DATA_TABLE_ENTRY entry = CONTAINING_RECORD(cur, MY_LDR_DATA_TABLE_ENTRY, InMemoryOrderLinks);
+            PWSTR baseDllName = entry->BaseDllName.Buffer;
+            if (baseDllName) {
+                // calculating cur entry name hash
+                wm_dword curDllHash = 0;
+                WCHAR *p = baseDllName;
+                while (*p) {
+                    curDllHash = (curDllHash >> 13) | (curDllHash << 19);
+                    curDllHash +=  (wchar_t)*p++;
+                }
+                // comparing hashes
+                if (remoteData->dllHashes[i] == curDllHash) {
+                    dllBase = entry->DllBase;
+                    break;
+                }
+            }
+            cur = cur->Flink;
+        }
+
+        // TODO export dir parsing
+    }
+}
+WM_SC_ENDFN();
+#endif
+
 WM_API WmResult wmShellcodeCreate(WmShellcode **out)
 {
     if (!out) return WM_ERROR_INVALID_ARG;
@@ -49,7 +114,6 @@ WM_API WmResult wmShellcodeSetPayload(WmShellcode *shellcode, WmShellcodePayloaS
 //     ((char*)fnNamePtr)[fnNameLen] = '\0';
 
 //     WmShellcodeEntry *entry = &shellcode->entries[shellcode->entriesCount++];
-//     entry->type = WM_SHELLCODE_ENTRY_IMPORT;
 //     entry->imp.dllNameLen = dllNameLen;
 //     entry->imp.funcNameLen = fnNameLen;
 //     entry->imp.dllNameOffset = (wm_byte*)dllNamePtr - shellcode->data;
@@ -70,7 +134,6 @@ WM_API WmResult wmShellcodeAddString(WmShellcode *shellcode, const char *str)
     void *strPtr = shellcode->data + shellcode->dataSize;
 
     WmShellcodeEntry *entry = &shellcode->entries[shellcode->entriesCount++];
-    entry->type = WM_SHELLCODE_ENTRY_STRING;
     entry->offset = (wm_byte*)strPtr - shellcode->data;
     entry->size = strLen + 1;
 
@@ -92,7 +155,6 @@ WM_API WmResult wmShellcodeAddData(WmShellcode *shellcode, const void *data, siz
     shellcode->dataSize += dataSize;
 
     WmShellcodeEntry *entry = &shellcode->entries[shellcode->entriesCount++];
-    entry->type = WM_SHELLCODE_ENTRY_RAWDATA;
     entry->offset = (wm_byte*)dataPtr - shellcode->data;
     entry->size = dataSize;
 
